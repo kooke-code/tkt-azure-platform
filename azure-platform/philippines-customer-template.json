@@ -1,0 +1,402 @@
+{
+  "$schema": "https://tktconsulting.com/schemas/customer-template-v2.json",
+  "version": "2.0",
+  "lastUpdated": "2026-01-30",
+  
+  "customerInfo": {
+    "customerNumber": "001",
+    "customerName": "Customer 001",
+    "region": "southeastasia",
+    "teamSize": 4
+  },
+
+  "team": {
+    "teamLead": {
+      "displayName": "PH Team Lead {customerNumber}",
+      "userPrincipalName": "ph-lead-{customerNumber}@yannickderidderoutlook.onmicrosoft.com",
+      "role": "TeamLead"
+    },
+    "consultants": [
+      {
+        "displayName": "PH Consultant {customerNumber}-001",
+        "userPrincipalName": "ph-consultant-{customerNumber}-001@yannickderidderoutlook.onmicrosoft.com",
+        "role": "SAPConsultant"
+      },
+      {
+        "displayName": "PH Consultant {customerNumber}-002",
+        "userPrincipalName": "ph-consultant-{customerNumber}-002@yannickderidderoutlook.onmicrosoft.com",
+        "role": "SAPConsultant"
+      },
+      {
+        "displayName": "PH Consultant {customerNumber}-003",
+        "userPrincipalName": "ph-consultant-{customerNumber}-003@yannickderidderoutlook.onmicrosoft.com",
+        "role": "SAPConsultant"
+      }
+    ]
+  },
+
+  "infrastructure": {
+    "resourceGroup": {
+      "name": "rg-customer-{customerNumber}-philippines",
+      "location": "southeastasia",
+      "tags": {
+        "Customer": "Customer-{customerNumber}",
+        "Project": "SAP-Consulting",
+        "Environment": "Production",
+        "CostCenter": "Customer-{customerNumber}-Philippines",
+        "Owner": "tom.tuerlings@tktconsulting.com",
+        "BusinessUnit": "Philippines-SAP-Services",
+        "CreatedBy": "Automation",
+        "CreatedDate": "{deploymentDate}",
+        "Application": "SAP-S4HANA-Support",
+        "DataClassification": "Confidential",
+        "Compliance": "GDPR",
+        "MonitoringLevel": "Premium",
+        "BackupRequired": "Yes",
+        "DisasterRecovery": "Required"
+      }
+    },
+    "virtualMachines": [
+      {
+        "name": "vm-ph-lead-{customerNumber}",
+        "size": "Standard_D4s_v3",
+        "os": "Windows Server 2022 Datacenter",
+        "osDiskSize": "127GB Premium SSD",
+        "osDiskType": "Premium_LRS",
+        "notes": "No data disks - all storage via Azure Files"
+      },
+      {
+        "name": "vm-ph-consultant-{customerNumber}-001",
+        "size": "Standard_D4s_v3",
+        "os": "Windows Server 2022 Datacenter",
+        "osDiskSize": "127GB Premium SSD",
+        "osDiskType": "Premium_LRS"
+      },
+      {
+        "name": "vm-ph-consultant-{customerNumber}-002",
+        "size": "Standard_D4s_v3",
+        "os": "Windows Server 2022 Datacenter",
+        "osDiskSize": "127GB Premium SSD",
+        "osDiskType": "Premium_LRS"
+      },
+      {
+        "name": "vm-ph-consultant-{customerNumber}-003",
+        "size": "Standard_D4s_v3",
+        "os": "Windows Server 2022 Datacenter",
+        "osDiskSize": "127GB Premium SSD",
+        "osDiskType": "Premium_LRS"
+      }
+    ],
+    "storageAccount": {
+      "name": "stcustomer{customerNumber}ph",
+      "type": "Standard_ZRS",
+      "kind": "StorageV2",
+      "accessTier": "Hot",
+      "minimumTlsVersion": "TLS1_2",
+      "allowBlobPublicAccess": false,
+      "containers": [
+        {
+          "name": "knowledge-base",
+          "purpose": "Consultant documentation and knowledge articles"
+        },
+        {
+          "name": "project-files",
+          "purpose": "Active project deliverables"
+        },
+        {
+          "name": "screen-recordings",
+          "purpose": "Session recordings for audit and training"
+        }
+      ],
+      "fileShares": [
+        {
+          "name": "consultant-data",
+          "quota": "100GB",
+          "purpose": "Mapped drive for all VMs - replaces local storage"
+        }
+      ]
+    },
+    "networking": {
+      "virtualNetwork": {
+        "name": "vnet-customer-{customerNumber}-ph",
+        "addressSpace": "10.{customerNumber}.0.0/16",
+        "subnets": [
+          {
+            "name": "snet-workstations",
+            "addressPrefix": "10.{customerNumber}.1.0/24",
+            "serviceEndpoints": ["Microsoft.Storage"]
+          }
+        ]
+      },
+      "networkSecurityGroup": {
+        "name": "nsg-customer-{customerNumber}-ph",
+        "rules": [
+          {
+            "name": "Allow-RDP-Belgium",
+            "priority": 100,
+            "direction": "Inbound",
+            "access": "Allow",
+            "protocol": "TCP",
+            "destinationPort": "3389",
+            "sourceAddressPrefix": "Belgium-IP-Range"
+          },
+          {
+            "name": "Allow-RDP-Philippines",
+            "priority": 110,
+            "direction": "Inbound",
+            "access": "Allow",
+            "protocol": "TCP",
+            "destinationPort": "3389",
+            "sourceAddressPrefix": "Philippines-IP-Range"
+          },
+          {
+            "name": "Deny-All-Inbound",
+            "priority": 4096,
+            "direction": "Inbound",
+            "access": "Deny",
+            "protocol": "*",
+            "destinationPort": "*",
+            "sourceAddressPrefix": "*"
+          }
+        ]
+      },
+      "azureFirewall": {
+        "name": "afw-customer-{customerNumber}-ph",
+        "sku": "Standard",
+        "purpose": "URL filtering and outbound traffic control",
+        "applicationRules": [
+          {
+            "name": "Allow-SAP-Cloud",
+            "priority": 100,
+            "ruleType": "ApplicationRule",
+            "targetFqdns": [
+              "*.sapcloud.com",
+              "*.hana.ondemand.com",
+              "*.s4hana.cloud.sap",
+              "*.successfactors.com",
+              "*.sap.com"
+            ],
+            "protocols": ["Https:443"]
+          },
+          {
+            "name": "Allow-Microsoft-Services",
+            "priority": 200,
+            "ruleType": "ApplicationRule",
+            "targetFqdns": [
+              "*.microsoft.com",
+              "*.microsoftonline.com",
+              "*.azure.com",
+              "*.office.com",
+              "*.office365.com",
+              "*.sharepoint.com",
+              "*.teams.microsoft.com"
+            ],
+            "protocols": ["Https:443"]
+          },
+          {
+            "name": "Allow-Customer-Specific",
+            "priority": 300,
+            "ruleType": "ApplicationRule",
+            "targetFqdns": [
+              "{customer-specific-domains}"
+            ],
+            "protocols": ["Https:443"],
+            "notes": "Add customer-specific SAP and business domains here"
+          },
+          {
+            "name": "Deny-All-Other",
+            "priority": 65000,
+            "ruleType": "ApplicationRule",
+            "targetFqdns": ["*"],
+            "action": "Deny"
+          }
+        ]
+      }
+    }
+  },
+
+  "security": {
+    "securityGroup": {
+      "name": "Customer-{customerNumber}-Philippines-SAP-Team",
+      "description": "Philippines SAP consultants for Customer {customerNumber}"
+    },
+    "conditionalAccess": {
+      "mfaRequired": true,
+      "approvedLocations": ["Philippines", "Belgium"],
+      "deviceCompliance": true,
+      "riskBasedAccess": true,
+      "sessionControls": {
+        "signInFrequency": "8 hours",
+        "persistentBrowser": false
+      }
+    },
+    "roles": [
+      {
+        "roleName": "SAP Consultant",
+        "permissions": ["VM Start/Stop", "Storage Read/Write", "Monitoring Read"]
+      },
+      {
+        "roleName": "Team Lead",
+        "permissions": ["VM Start/Stop", "Storage Full Control", "User Read", "Monitoring Read"]
+      }
+    ],
+    "dataProtection": {
+      "localStoragePolicy": "Disabled",
+      "usbPolicy": "Blocked",
+      "clipboardPolicy": "OneWay-InboundOnly",
+      "driveRedirection": "Disabled",
+      "printerRedirection": "Disabled",
+      "enforcementMethod": "Group Policy + Intune"
+    }
+  },
+
+  "monitoring": {
+    "logAnalytics": {
+      "name": "law-customer-{customerNumber}-ph",
+      "sku": "PerGB2018",
+      "retentionDays": 90,
+      "solutions": [
+        "SecurityInsights",
+        "VMInsights",
+        "AzureActivity"
+      ]
+    },
+    "screenRecording": {
+      "solution": "Azure Virtual Desktop Insights + Custom",
+      "method": "Windows Session Recording via Group Policy",
+      "storage": "stcustomer{customerNumber}ph/screen-recordings",
+      "retentionDays": 90,
+      "encryption": "AES-256",
+      "accessControl": "TKT-Administrators only",
+      "alternatives": [
+        {
+          "name": "Microsoft Defender for Cloud Apps",
+          "feature": "Session Recording",
+          "notes": "Enterprise option with built-in DLP"
+        },
+        {
+          "name": "ObserveIT / Teramind",
+          "feature": "User Activity Monitoring",
+          "notes": "Third-party agent-based solution"
+        }
+      ]
+    },
+    "alerts": {
+      "actionGroup": "ag-customer-{customerNumber}-ph",
+      "recipients": ["yannick.deridder@outlook.com"],
+      "rules": [
+        {"metric": "CPU > 85%", "severity": "Warning"},
+        {"metric": "Memory > 90%", "severity": "Warning"},
+        {"metric": "Disk < 10%", "severity": "Critical"},
+        {"metric": "VM Stopped unexpectedly", "severity": "Critical"},
+        {"metric": "Firewall rule violation", "severity": "Critical"},
+        {"metric": "Blocked URL access attempt", "severity": "Warning"}
+      ]
+    }
+  },
+
+  "backup": {
+    "recoveryServicesVault": {
+      "name": "rsv-customer-{customerNumber}-ph",
+      "redundancy": "GeoRedundant",
+      "softDelete": true,
+      "softDeleteRetentionDays": 14
+    },
+    "policies": [
+      {
+        "name": "VM-Daily-Backup",
+        "type": "AzureVM",
+        "schedule": "Daily 02:00 UTC+8",
+        "retention": {
+          "daily": 30,
+          "weekly": 12,
+          "monthly": 12
+        }
+      },
+      {
+        "name": "Storage-Daily-Backup",
+        "type": "AzureFileShare",
+        "schedule": "Daily 03:00 UTC+8",
+        "retention": {
+          "daily": 30
+        }
+      }
+    ]
+  },
+
+  "costs": {
+    "monthlyEstimate": {
+      "perConsultant": "€155",
+      "total4Consultants": "€620",
+      "notes": "Includes enhanced security controls"
+    },
+    "breakdown": {
+      "virtualMachines": {
+        "cost": "€380",
+        "detail": "4x Standard_D4s_v3 @ €95/month"
+      },
+      "storage": {
+        "cost": "€15",
+        "detail": "ZRS storage + Azure Files share"
+      },
+      "networking": {
+        "cost": "€10",
+        "detail": "VNet, NSG, Public IPs"
+      },
+      "azureFirewall": {
+        "cost": "€125",
+        "detail": "Standard SKU for URL filtering",
+        "alternative": "Use Azure Virtual Desktop with RDP Shortpath for lower cost"
+      },
+      "logAnalytics": {
+        "cost": "€15",
+        "detail": "~5GB/month ingestion"
+      },
+      "backup": {
+        "cost": "€60",
+        "detail": "4 VMs + file share backup"
+      },
+      "screenRecording": {
+        "cost": "€15",
+        "detail": "Storage for recordings (~50GB/month)"
+      },
+      "identity": {
+        "cost": "€0",
+        "detail": "Azure AD Free tier sufficient"
+      }
+    },
+    "costOptimizationOptions": [
+      {
+        "option": "Use Azure Virtual Desktop instead of IaaS VMs",
+        "savings": "~€100/month",
+        "benefits": "Built-in session recording, RDP Shortpath, easier management"
+      },
+      {
+        "option": "Use Web Application Firewall instead of Azure Firewall",
+        "savings": "~€80/month",
+        "tradeoff": "Less granular URL filtering"
+      },
+      {
+        "option": "Reserved Instances (1-year)",
+        "savings": "~€120/month (30%)",
+        "requirement": "Upfront commitment"
+      }
+    ]
+  },
+
+  "compliance": {
+    "frameworks": ["GDPR", "ISO27001-aligned"],
+    "dataResidency": "Southeast Asia",
+    "auditTrail": {
+      "userActions": "Azure Activity Logs",
+      "dataAccess": "Storage Analytics",
+      "networkActivity": "Azure Firewall Logs",
+      "sessionRecordings": "Blob Storage with immutable policy"
+    },
+    "dataProtection": {
+      "encryptionAtRest": "AES-256 (Azure-managed keys)",
+      "encryptionInTransit": "TLS 1.2+",
+      "backupEncryption": "AES-256"
+    }
+  }
+}

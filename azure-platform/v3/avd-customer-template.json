@@ -1,0 +1,440 @@
+{
+  "$schema": "https://tktconsulting.com/schemas/avd-customer-template-v3.json",
+  "version": "3.0",
+  "lastUpdated": "2026-02-01",
+  "templateType": "AVD-MultiSession",
+  
+  "customerInfo": {
+    "customerNumber": "{CUSTOMER_NUMBER}",
+    "customerName": "{CUSTOMER_NAME}",
+    "region": "southeastasia",
+    "teamSize": 4,
+    "billingContact": "{BILLING_EMAIL}",
+    "technicalContact": "{TECH_EMAIL}"
+  },
+
+  "licensing": {
+    "model": "M365-Business-Premium",
+    "usersIncluded": 4,
+    "perUserCost": 20,
+    "includes": [
+      "Windows 11 Enterprise",
+      "Office 365 Apps",
+      "OneDrive 1TB",
+      "SharePoint",
+      "Teams",
+      "Defender for Endpoint",
+      "Entra ID P1"
+    ]
+  },
+
+  "infrastructure": {
+    "resourceGroup": {
+      "name": "rg-tktph-avd-prod-sea",
+      "location": "southeastasia",
+      "tags": {
+        "Environment": "Production",
+        "Project": "TKT-Philippines",
+        "Owner": "tom.tuerlings@tktconsulting.com",
+        "CostCenter": "TKTPH-{CUSTOMER_NUMBER}",
+        "DataClassification": "Confidential",
+        "AutoShutdown": "Enabled",
+        "CreatedBy": "Automation",
+        "CreatedDate": "{DEPLOYMENT_DATE}"
+      }
+    },
+
+    "avdControlPlane": {
+      "workspace": {
+        "name": "tktph-ws",
+        "friendlyName": "TKT Philippines Workspace",
+        "description": "AVD workspace for Philippines SAP consultants"
+      },
+      "hostPool": {
+        "name": "tktph-hp",
+        "friendlyName": "TKT Philippines Host Pool",
+        "type": "Pooled",
+        "loadBalancerType": "BreadthFirst",
+        "maxSessionLimit": 2,
+        "validationEnvironment": false,
+        "preferredAppGroupType": "Desktop",
+        "startVMOnConnect": true
+      },
+      "applicationGroup": {
+        "name": "tktph-dag",
+        "friendlyName": "TKT Philippines Desktop",
+        "type": "Desktop",
+        "description": "Full desktop access for SAP consultants"
+      }
+    },
+
+    "sessionHosts": {
+      "count": 2,
+      "namePrefix": "vm-tktph",
+      "vmSize": "Standard_D4s_v5",
+      "specs": {
+        "vCPUs": 4,
+        "memoryGB": 16,
+        "maxSessions": 2
+      },
+      "osDisk": {
+        "sizeGB": 128,
+        "type": "Premium_LRS",
+        "caching": "ReadWrite"
+      },
+      "image": {
+        "publisher": "MicrosoftWindowsDesktop",
+        "offer": "windows-11",
+        "sku": "win11-23h2-avd",
+        "version": "latest"
+      },
+      "availabilityOptions": {
+        "type": "None",
+        "reason": "Cost optimization for non-critical workload"
+      }
+    },
+
+    "networking": {
+      "virtualNetwork": {
+        "name": "vnet-tktph-avd-sea",
+        "addressSpace": "10.2.0.0/16"
+      },
+      "subnets": [
+        {
+          "name": "snet-avd",
+          "addressPrefix": "10.2.1.0/24",
+          "serviceEndpoints": ["Microsoft.Storage"],
+          "delegations": []
+        }
+      ],
+      "nsg": {
+        "name": "nsg-tktph-avd",
+        "rules": [
+          {
+            "name": "Allow-AVD-Outbound",
+            "priority": 100,
+            "direction": "Outbound",
+            "access": "Allow",
+            "protocol": "Tcp",
+            "sourceAddressPrefix": "VirtualNetwork",
+            "destinationAddressPrefix": "AzureCloud",
+            "destinationPortRange": "443"
+          },
+          {
+            "name": "Allow-Storage-SMB",
+            "priority": 110,
+            "direction": "Outbound",
+            "access": "Allow",
+            "protocol": "Tcp",
+            "sourceAddressPrefix": "VirtualNetwork",
+            "destinationAddressPrefix": "Storage",
+            "destinationPortRange": "445"
+          },
+          {
+            "name": "Allow-DNS",
+            "priority": 120,
+            "direction": "Outbound",
+            "access": "Allow",
+            "protocol": "*",
+            "sourceAddressPrefix": "VirtualNetwork",
+            "destinationAddressPrefix": "*",
+            "destinationPortRange": "53"
+          },
+          {
+            "name": "Allow-KMS",
+            "priority": 130,
+            "direction": "Outbound",
+            "access": "Allow",
+            "protocol": "Tcp",
+            "sourceAddressPrefix": "VirtualNetwork",
+            "destinationAddressPrefix": "*",
+            "destinationPortRange": "1688"
+          },
+          {
+            "name": "Deny-All-Inbound",
+            "priority": 4096,
+            "direction": "Inbound",
+            "access": "Deny",
+            "protocol": "*",
+            "sourceAddressPrefix": "*",
+            "destinationAddressPrefix": "*",
+            "destinationPortRange": "*"
+          }
+        ]
+      },
+      "azureFirewall": {
+        "enabled": false,
+        "reason": "NSG sufficient for small deployment, add if compliance requires URL filtering"
+      }
+    },
+
+    "storage": {
+      "fslogix": {
+        "storageAccountName": "sttktphfslogix",
+        "kind": "FileStorage",
+        "sku": "Premium_LRS",
+        "fileShareName": "fslogix-profiles",
+        "quotaGB": 100,
+        "enableLargeFileShare": true,
+        "authentication": "AzureActiveDirectory",
+        "profileConfiguration": {
+          "profileType": "VHDx",
+          "profileSizeLimitGB": 10,
+          "deleteCachedProfiles": true,
+          "cloudCacheEnabled": false
+        }
+      }
+    },
+
+    "monitoring": {
+      "logAnalytics": {
+        "name": "law-tktph-avd-sea",
+        "sku": "PerGB2018",
+        "retentionDays": 30
+      },
+      "avdInsights": {
+        "enabled": true,
+        "workbook": "AVD-Insights"
+      },
+      "diagnosticSettings": {
+        "hostPool": ["Checkpoint", "Error", "Management", "Connection", "HostRegistration", "AgentHealthStatus"],
+        "workspace": ["Checkpoint", "Error", "Management", "Feed"]
+      },
+      "alerts": [
+        {
+          "name": "SessionHost-Unavailable",
+          "description": "Alert when session host heartbeat is missing",
+          "severity": 0,
+          "evaluationFrequency": "PT5M",
+          "windowSize": "PT5M",
+          "criteria": {
+            "query": "Heartbeat | summarize LastHeartbeat = max(TimeGenerated) by Computer | where LastHeartbeat < ago(5m)",
+            "threshold": 0,
+            "operator": "GreaterThan"
+          }
+        },
+        {
+          "name": "High-CPU-Usage",
+          "description": "Alert when CPU exceeds 85% for 15 minutes",
+          "severity": 2,
+          "evaluationFrequency": "PT5M",
+          "windowSize": "PT15M",
+          "criteria": {
+            "metricName": "Percentage CPU",
+            "threshold": 85,
+            "operator": "GreaterThan"
+          }
+        },
+        {
+          "name": "Connection-Failures",
+          "description": "Alert when connection failures exceed threshold",
+          "severity": 2,
+          "evaluationFrequency": "PT5M",
+          "windowSize": "PT10M",
+          "criteria": {
+            "query": "WVDConnections | where State == 'Failed' | summarize FailedConnections = count() by bin(TimeGenerated, 10m) | where FailedConnections > 5",
+            "threshold": 0,
+            "operator": "GreaterThan"
+          }
+        }
+      ],
+      "actionGroup": {
+        "name": "ag-tktph-avd",
+        "shortName": "tktph",
+        "emailReceivers": [
+          {
+            "name": "Admin",
+            "emailAddress": "tom.tuerlings@tktconsulting.com"
+          }
+        ]
+      }
+    },
+
+    "automation": {
+      "autoShutdown": {
+        "solution": "StartStopVMsV2",
+        "schedule": {
+          "startTime": "08:00",
+          "stopTime": "18:00",
+          "timezone": "Asia/Manila",
+          "daysOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+        },
+        "estimatedSavings": "60%"
+      }
+    }
+  },
+
+  "identity": {
+    "provider": "EntraID",
+    "joinType": "AzureADJoin",
+    "domainServices": false,
+    "conditionalAccess": {
+      "policies": [
+        {
+          "name": "Require-MFA-AVD",
+          "state": "enabled",
+          "conditions": {
+            "users": {
+              "includeGroups": ["TKT-Philippines-AVD-Users"]
+            },
+            "applications": {
+              "includeApplications": ["9cdead84-a844-4324-93f2-b2e6bb768d07"]
+            }
+          },
+          "grantControls": {
+            "operator": "OR",
+            "builtInControls": ["mfa"]
+          }
+        },
+        {
+          "name": "Block-Legacy-Auth",
+          "state": "enabled",
+          "conditions": {
+            "users": {
+              "includeUsers": ["All"]
+            },
+            "clientAppTypes": ["exchangeActiveSync", "other"]
+          },
+          "grantControls": {
+            "operator": "OR",
+            "builtInControls": ["block"]
+          }
+        }
+      ]
+    }
+  },
+
+  "users": {
+    "securityGroup": {
+      "name": "TKT-Philippines-AVD-Users",
+      "description": "AVD users for TKT Philippines SAP consultants"
+    },
+    "accounts": [
+      {
+        "userPrincipalName": "ph-consultant-001@tktconsulting.com",
+        "displayName": "PH Consultant 001",
+        "role": "Consultant",
+        "license": "M365-Business-Premium"
+      },
+      {
+        "userPrincipalName": "ph-consultant-002@tktconsulting.com",
+        "displayName": "PH Consultant 002",
+        "role": "Consultant",
+        "license": "M365-Business-Premium"
+      },
+      {
+        "userPrincipalName": "ph-consultant-003@tktconsulting.com",
+        "displayName": "PH Consultant 003",
+        "role": "Consultant",
+        "license": "M365-Business-Premium"
+      },
+      {
+        "userPrincipalName": "ph-consultant-004@tktconsulting.com",
+        "displayName": "PH Consultant 004",
+        "role": "Consultant",
+        "license": "M365-Business-Premium"
+      }
+    ]
+  },
+
+  "costs": {
+    "currency": "EUR",
+    "monthlyEstimate": {
+      "total": 220,
+      "perConsultant": 55,
+      "budgetPerConsultant": 150,
+      "savings": "63%"
+    },
+    "breakdown": {
+      "compute": {
+        "description": "2x D4s_v5 @ 8h/day x 22 days",
+        "cost": 110
+      },
+      "storage": {
+        "description": "Azure Files Premium 100GB",
+        "cost": 20
+      },
+      "licensing": {
+        "description": "4x M365 Business Premium",
+        "cost": 80
+      },
+      "monitoring": {
+        "description": "Log Analytics ~5GB/month",
+        "cost": 10
+      }
+    },
+    "vsV2Architecture": {
+      "v2Total": 1487,
+      "v3Total": 220,
+      "monthlySavings": 1267,
+      "percentSavings": "85%"
+    }
+  },
+
+  "compliance": {
+    "frameworks": ["GDPR"],
+    "dataResidency": "Southeast Asia",
+    "encryption": {
+      "atRest": "AES-256 (Azure Storage Service Encryption)",
+      "inTransit": "TLS 1.2+"
+    },
+    "backup": {
+      "userFiles": "OneDrive versioning (93 days)",
+      "teamFiles": "SharePoint retention (93 days)",
+      "profiles": "Azure Files snapshots (7 days)"
+    },
+    "auditLogging": {
+      "signInLogs": "Entra ID (30 days)",
+      "activityLogs": "Azure Activity Log (90 days)",
+      "avdLogs": "Log Analytics (30 days)"
+    }
+  },
+
+  "deployment": {
+    "estimatedTime": "3-4 hours",
+    "phases": [
+      {
+        "phase": 1,
+        "name": "Prerequisites",
+        "duration": "30 min",
+        "tasks": ["Verify M365 licenses", "Create resource group", "Deploy networking"]
+      },
+      {
+        "phase": 2,
+        "name": "Storage & Monitoring",
+        "duration": "30 min",
+        "tasks": ["Create storage account", "Create FSLogix share", "Deploy Log Analytics"]
+      },
+      {
+        "phase": 3,
+        "name": "AVD Control Plane",
+        "duration": "30 min",
+        "tasks": ["Create workspace", "Create host pool", "Create application group"]
+      },
+      {
+        "phase": 4,
+        "name": "Session Hosts",
+        "duration": "60 min",
+        "tasks": ["Deploy VMs", "Join to host pool", "Install AVD agent", "Configure FSLogix"]
+      },
+      {
+        "phase": 5,
+        "name": "Identity & Access",
+        "duration": "30 min",
+        "tasks": ["Create security group", "Assign users", "Configure Conditional Access"]
+      },
+      {
+        "phase": 6,
+        "name": "Automation & Alerts",
+        "duration": "30 min",
+        "tasks": ["Configure auto-shutdown", "Create alerts", "Configure action group"]
+      },
+      {
+        "phase": 7,
+        "name": "Validation",
+        "duration": "30 min",
+        "tasks": ["User login test", "Application test", "Auto-shutdown test", "Handover"]
+      }
+    ]
+  }
+}

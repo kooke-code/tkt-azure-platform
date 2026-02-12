@@ -1,0 +1,49 @@
+{
+  "$schema": "https://graph.microsoft.com/v1.0/$metadata#users",
+  "description": "Template for creating AVD users via Microsoft Graph API",
+  "version": "1.0",
+  "template": {
+    "accountEnabled": true,
+    "displayName": "PH Consultant {number}",
+    "mailNickname": "ph-consultant-{number}",
+    "userPrincipalName": "ph-consultant-{number}@{domain}",
+    "passwordProfile": {
+      "forceChangePasswordNextSignIn": true,
+      "password": "{generated_password}"
+    },
+    "usageLocation": "PH",
+    "jobTitle": "SAP Consultant",
+    "department": "Philippines Operations",
+    "officeLocation": "Remote - Philippines",
+    "preferredLanguage": "en-US"
+  },
+  "users": [
+    {
+      "number": "001",
+      "role": "Lead Consultant"
+    },
+    {
+      "number": "002",
+      "role": "Consultant"
+    },
+    {
+      "number": "003",
+      "role": "Consultant"
+    },
+    {
+      "number": "004",
+      "role": "Consultant"
+    }
+  ],
+  "license": {
+    "skuPartNumber": "O365_BUSINESS_PREMIUM",
+    "description": "Microsoft 365 Business Premium",
+    "requiredForAVD": true
+  },
+  "group": {
+    "displayName": "TKT-Philippines-AVD-Users",
+    "description": "AVD users for TKT Philippines SAP consulting",
+    "mailEnabled": false,
+    "securityEnabled": true
+  }
+}

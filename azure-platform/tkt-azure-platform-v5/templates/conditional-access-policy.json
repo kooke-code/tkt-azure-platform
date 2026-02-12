@@ -1,0 +1,48 @@
+{
+  "$schema": "https://graph.microsoft.com/v1.0/$metadata#conditionalAccessPolicies",
+  "description": "Conditional Access policy requiring MFA for AVD access",
+  "version": "1.0",
+  "policy": {
+    "displayName": "TKT-AVD-Require-MFA",
+    "state": "enabledForReportingButNotEnforced",
+    "conditions": {
+      "users": {
+        "includeGroups": ["{avd_users_group_id}"]
+      },
+      "applications": {
+        "includeApplications": [
+          "9cdead84-a844-4324-93f2-b2e6bb768d07"
+        ]
+      },
+      "clientAppTypes": ["all"],
+      "locations": {
+        "includeLocations": ["All"]
+      }
+    },
+    "grantControls": {
+      "operator": "OR",
+      "builtInControls": ["mfa"]
+    },
+    "sessionControls": {
+      "signInFrequency": {
+        "value": 8,
+        "type": "hours",
+        "isEnabled": true
+      },
+      "persistentBrowser": {
+        "mode": "never",
+        "isEnabled": true
+      }
+    }
+  },
+  "applicationIds": {
+    "azureVirtualDesktop": "9cdead84-a844-4324-93f2-b2e6bb768d07",
+    "azureVirtualDesktopClient": "a85cf173-4192-42f8-81fa-777a763e6e2c",
+    "microsoftRemoteDesktop": "270efc09-cd0d-444b-a71f-39af4910ec45"
+  },
+  "notes": [
+    "Policy is created in report-only mode for safety",
+    "Enable policy manually after verifying users can authenticate",
+    "Session frequency set to 8 hours (standard workday)"
+  ]
+}

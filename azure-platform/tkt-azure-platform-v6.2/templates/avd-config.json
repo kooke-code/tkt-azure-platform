@@ -1,0 +1,156 @@
+{
+  "$schema": "https://tktconsulting.be/schemas/avd-config-v6.2.json",
+  "version": "6.2",
+  "lastUpdated": "2026-02-13",
+  "description": "TKT Philippines AVD Platform Configuration",
+  
+  "azure": {
+    "subscriptionId": "",
+    "tenantId": "",
+    "location": "southeastasia",
+    "resourceGroup": "rg-tktph-avd-prod-sea",
+    "tags": {
+      "Environment": "Production",
+      "Project": "TKT-Philippines",
+      "Owner": "tom.tuerlings@tktconsulting.com",
+      "CostCenter": "TKTPH-001",
+      "Version": "6.2"
+    }
+  },
+  
+  "identity": {
+    "joinType": "EntraID",
+    "domain": "tktconsulting.be",
+    "userPrefix": "ph-consultant",
+    "userCount": 4,
+    "securityGroup": {
+      "name": "TKT-Philippines-AVD-Users",
+      "description": "AVD users for TKT Philippines SAP consultants"
+    },
+    "adminContact": "tom.tuerlings@tktconsulting.com"
+  },
+  
+  "users": [
+    {
+      "userPrincipalName": "ph-consultant-001@tktconsulting.be",
+      "displayName": "PH Consultant 001",
+      "role": "SAPConsultant"
+    },
+    {
+      "userPrincipalName": "ph-consultant-002@tktconsulting.be",
+      "displayName": "PH Consultant 002",
+      "role": "SAPConsultant"
+    },
+    {
+      "userPrincipalName": "ph-consultant-003@tktconsulting.be",
+      "displayName": "PH Consultant 003",
+      "role": "SAPConsultant"
+    },
+    {
+      "userPrincipalName": "ph-consultant-004@tktconsulting.be",
+      "displayName": "PH Consultant 004",
+      "role": "SAPConsultant"
+    }
+  ],
+  
+  "networking": {
+    "virtualNetwork": {
+      "name": "vnet-tktph-avd-sea",
+      "addressSpace": "10.2.0.0/16"
+    },
+    "subnet": {
+      "name": "snet-avd",
+      "addressPrefix": "10.2.1.0/24"
+    },
+    "networkSecurityGroup": {
+      "name": "nsg-tktph-avd"
+    }
+  },
+  
+  "storage": {
+    "account": {
+      "name": "sttktphfslogix",
+      "kind": "FileStorage",
+      "sku": "Premium_LRS"
+    },
+    "fslogix": {
+      "shareName": "profiles",
+      "quotaGB": 100
+    }
+  },
+  
+  "monitoring": {
+    "logAnalytics": {
+      "name": "law-tktph-avd-sea",
+      "retentionDays": 90
+    },
+    "actionGroup": {
+      "name": "ag-tktph-avd",
+      "emailReceivers": ["tom.tuerlings@tktconsulting.com"]
+    }
+  },
+  
+  "avd": {
+    "workspace": {
+      "name": "tktph-ws",
+      "friendlyName": "TKT Philippines Workspace"
+    },
+    "hostPool": {
+      "name": "tktph-hp",
+      "type": "Pooled",
+      "loadBalancerType": "BreadthFirst",
+      "maxSessionLimit": 4
+    },
+    "applicationGroup": {
+      "name": "tktph-dag",
+      "type": "Desktop"
+    }
+  },
+  
+  "sessionHosts": {
+    "vmPrefix": "vm-tktph",
+    "vmCount": 2,
+    "vmSize": "Standard_D4s_v3",
+    "vmSizeAlternatives": ["Standard_D4s_v4", "Standard_D4s_v5", "Standard_B4ms"],
+    "image": {
+      "publisher": "MicrosoftWindowsDesktop",
+      "offer": "windows-11",
+      "sku": "win11-23h2-avd",
+      "version": "latest"
+    },
+    "osDisk": {
+      "sizeGB": 128,
+      "storageType": "Premium_LRS"
+    },
+    "adminUsername": "avdadmin",
+    "entraIdJoin": true,
+    "managedIdentity": true
+  },
+  
+  "rbacRoles": {
+    "applicationGroup": "Desktop Virtualization User",
+    "virtualMachines": "Virtual Machine User Login"
+  },
+  
+  "conditionalAccess": {
+    "allowedLocations": ["Philippines", "Belgium"],
+    "mfaRequired": true,
+    "signInFrequencyHours": 8
+  },
+  
+  "costs": {
+    "currency": "EUR",
+    "monthlyEstimate": 235,
+    "breakdown": {
+      "sessionHostVMs": 190,
+      "premiumStorage": 20,
+      "logAnalytics": 15,
+      "networking": 10
+    }
+  },
+  
+  "access": {
+    "webClient": "https://rdweb.wvd.microsoft.com/arm/webclient",
+    "feedUrl": "https://rdweb.wvd.microsoft.com/api/arm/feeddiscovery"
+  }
+}

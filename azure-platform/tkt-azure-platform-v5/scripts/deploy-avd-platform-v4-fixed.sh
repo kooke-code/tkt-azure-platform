@@ -80,7 +80,7 @@ MAX_SESSION_LIMIT="${MAX_SESSION_LIMIT:-4}"
 # Session Hosts
 VM_PREFIX="${VM_PREFIX:-vm-tktph}"
 VM_COUNT="${VM_COUNT:-2}"
-VM_SIZE="${VM_SIZE:-Standard_D4s_v5}"
+VM_SIZE="${VM_SIZE:-Standard_D4s_v3}"
 VM_IMAGE="${VM_IMAGE:-MicrosoftWindowsDesktop:windows-11:win11-23h2-avd:latest}"
 VM_DISK_SIZE_GB="${VM_DISK_SIZE_GB:-128}"
 ADMIN_USERNAME="${ADMIN_USERNAME:-avdadmin}"

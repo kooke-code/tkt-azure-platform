@@ -1,0 +1,57 @@
+{
+  "description": "KQL queries for weekly session log export. Used by the scheduled task on AVD session hosts to generate weekly reports for AI analysis.",
+  "version": "8.0",
+  "schedule": "Every Sunday at 23:00 UTC",
+  "output_path": "S:\\weekly-reports\\",
+  "queries": {
+    "user_sessions": {
+      "description": "User login/logout events with session duration",
+      "kql": "SecurityEvent | where TimeGenerated > ago(7d) | where EventID in (4624, 4634) | where AccountType == 'User' | where Account !contains '$' | summarize LoginTime = min(iff(EventID == 4624, TimeGenerated, datetime(null))), LogoutTime = max(iff(EventID == 4634, TimeGenerated, datetime(null))) by TargetUserName, Computer, LogonType | extend SessionDurationMinutes = datetime_diff('minute', LogoutTime, LoginTime) | where isnotnull(LoginTime) | order by LoginTime asc"
+    },
+    "applications_launched": {
+      "description": "Applications started by users with frequency counts",
+      "kql": "SecurityEvent | where TimeGenerated > ago(7d) | where EventID == 4688 | where AccountType == 'User' | where Account !contains '$' | extend AppName = tostring(split(Process, '\\\\')[-1]) | where AppName !in ('conhost.exe', 'cmd.exe', 'svchost.exe', 'WerFault.exe', 'backgroundTaskHost.exe') | summarize LaunchCount = count(), FirstLaunch = min(TimeGenerated), LastLaunch = max(TimeGenerated) by TargetUserName, AppName, Computer | order by LaunchCount desc"
+    },
+    "fiori_browser_activity": {
+      "description": "Edge browser activity indicating Fiori app usage (parsed from process creation with URLs)",
+      "kql": "SecurityEvent | where TimeGenerated > ago(7d) | where EventID == 4688 | where Process has 'msedge.exe' | where CommandLine has_any ('fiori', 'launchpad', 's4hana', 'sap.com') | project TimeGenerated, Computer, Account, CommandLine | extend FioriApp = extract('app/([A-Za-z0-9-]+)', 1, CommandLine) | summarize AccessCount = count() by Account, FioriApp, bin(TimeGenerated, 1h) | order by TimeGenerated asc"
+    },
+    "zoho_desk_activity": {
+      "description": "Browser activity for Zoho Service Desk",
+      "kql": "SecurityEvent | where TimeGenerated > ago(7d) | where EventID == 4688 | where Process has 'msedge.exe' | where CommandLine has_any ('zoho', 'servicedesk', 'desk.zoho') | project TimeGenerated, Computer, Account, CommandLine | summarize AccessCount = count() by Account, bin(TimeGenerated, 1h) | order by TimeGenerated asc"
+    },
+    "teams_call_activity": {
+      "description": "Teams application usage indicating potential call activity",
+      "kql": "SecurityEvent | where TimeGenerated > ago(7d) | where EventID in (4688, 4689) | where Process has_any ('Teams.exe', 'ms-teams.exe', 'msedgewebview2.exe') | summarize EventCount = count(), StartTime = min(TimeGenerated), EndTime = max(TimeGenerated) by TargetUserName, Computer, bin(TimeGenerated, 30m) | extend ActivityDurationMinutes = datetime_diff('minute', EndTime, StartTime) | where ActivityDurationMinutes > 5 | order by StartTime asc"
+    },
+    "file_access_shared_drive": {
+      "description": "File access events on the shared documentation drive (S:\\)",
+      "kql": "SecurityEvent | where TimeGenerated > ago(7d) | where EventID == 4663 | where ObjectName startswith '\\\\Device\\\\Mup\\\\' or ObjectName contains 'shared-docs' | project TimeGenerated, Computer, Account, ObjectName, AccessMask | summarize AccessCount = count(), LastAccess = max(TimeGenerated) by Account, ObjectName | order by AccessCount desc"
+    },
+    "errors_and_warnings": {
+      "description": "Application and system errors/warnings from the past week",
+      "kql": "Event | where TimeGenerated > ago(7d) | where EventLevelName in ('Error', 'Warning') | where Source !in ('ESENT', 'VSS', 'Microsoft-Windows-DistributedCOM') | summarize ErrorCount = count(), FirstOccurrence = min(TimeGenerated), LastOccurrence = max(TimeGenerated) by Source, EventID, RenderedDescription, Computer | order by ErrorCount desc | take 50"
+    },
+    "failed_login_attempts": {
+      "description": "Failed login attempts for security monitoring",
+      "kql": "SecurityEvent | where TimeGenerated > ago(7d) | where EventID == 4625 | summarize FailedAttempts = count(), LastAttempt = max(TimeGenerated) by TargetUserName, Computer, IpAddress, LogonType | where FailedAttempts > 1 | order by FailedAttempts desc"
+    },
+    "daily_session_summary": {
+      "description": "Per-day summary of active users and total session hours",
+      "kql": "SecurityEvent | where TimeGenerated > ago(7d) | where EventID == 4624 | where AccountType == 'User' | where Account !contains '$' | summarize UniqueUsers = dcount(TargetUserName), TotalLogins = count() by bin(TimeGenerated, 1d), Computer | order by TimeGenerated asc"
+    }
+  },
+  "report_format": {
+    "filename_pattern": "{year}-W{week_number}-{hostname}-report.json",
+    "sections": [
+      "session_summary",
+      "application_usage",
+      "fiori_activity",
+      "zoho_desk_activity",
+      "teams_activity",
+      "shared_drive_usage",
+      "errors_and_warnings",
+      "security_events"
+    ]
+  }
+}

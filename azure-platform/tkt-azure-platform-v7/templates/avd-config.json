@@ -1,7 +1,7 @@
 {
-  "$schema": "https://tktconsulting.be/schemas/avd-config-v6.2.json",
-  "version": "6.2",
-  "lastUpdated": "2026-02-13",
+  "$schema": "https://tktconsulting.be/schemas/avd-config-v7.json",
+  "version": "7.0",
+  "lastUpdated": "2026-02-14",
   "description": "TKT Philippines AVD Platform Configuration",
   
   "azure": {
@@ -14,7 +14,7 @@
       "Project": "TKT-Philippines",
       "Owner": "tom.tuerlings@tktconsulting.com",
       "CostCenter": "TKTPH-001",
-      "Version": "6.2"
+      "Version": "7.0"
     }
   },
   

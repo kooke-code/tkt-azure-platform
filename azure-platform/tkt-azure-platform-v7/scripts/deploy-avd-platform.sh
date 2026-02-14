@@ -1,8 +1,8 @@
 #!/bin/bash
 #===============================================================================
-# TKT Philippines AVD Platform - V6.3 Deployment Script
-# Version: 6.3
-# Date: 2026-02-13
+# TKT Philippines AVD Platform - V7 Deployment Script
+# Version: 7.0
+# Date: 2026-02-14
 # Domain: tktconsulting.be
 #
 # CHANGELOG V6.3:
@@ -42,6 +42,20 @@
 set -o errexit
 set -o pipefail
 set -o nounset
+
+# Cleanup on failure
+cleanup_on_exit() {
+    local exit_code=$?
+    if [[ $exit_code -ne 0 ]]; then
+        echo ""
+        echo -e "\033[0;31m[ERROR] Deployment failed (exit code $exit_code).\033[0m"
+        echo "  Log file: ${LOG_FILE:-/tmp/avd-deployment.log}"
+        echo "  To resume, re-run the script - it will skip already-created resources."
+        # Remove registration token file if it exists
+        rm -f "${REGISTRATION_TOKEN_FILE:-}" 2>/dev/null
+    fi
+}
+trap cleanup_on_exit EXIT
 
 # Ensure running in bash
 if [ -z "${BASH_VERSION:-}" ]; then
@@ -191,7 +205,7 @@ show_banner() {
     echo -e "${BLUE}║        ██║   ██║  ██╗   ██║        ██║     ██║  ██║                          ║${NC}"
     echo -e "${BLUE}║        ╚═╝   ╚═╝  ╚═╝   ╚═╝        ╚═╝     ╚═╝  ╚═╝                          ║${NC}"
     echo -e "${BLUE}║                                                                               ║${NC}"
-    echo -e "${BLUE}║              Azure Virtual Desktop - V6.2 Automated Deployment               ║${NC}"
+    echo -e "${BLUE}║              Azure Virtual Desktop - V7 Automated Deployment                 ║${NC}"
     echo -e "${BLUE}║                         tktconsulting.be                                      ║${NC}"
     echo -e "${BLUE}║                      (Entra ID Join Enabled)                                  ║${NC}"
     echo -e "${BLUE}║                                                                               ║${NC}"
@@ -442,8 +456,8 @@ show_config_summary() {
     echo "    Host Pool:        $HOSTPOOL_NAME ($HOSTPOOL_TYPE)"
     echo "    Max Sessions:     $MAX_SESSION_LIMIT per host"
     echo ""
-    echo "  Identity (V6.2 - Entra ID Join)"
-    echo "  ────────────────────────────────"
+    echo "  Identity (Entra ID Join)"
+    echo "  ────────────────────────"
     echo "    Domain:           $ENTRA_DOMAIN"
     echo "    Join Type:        Microsoft Entra ID (cloud-only)"
     echo "    Users:            ${USER_PREFIX}-001 to ${USER_PREFIX}-$(printf '%03d' $USER_COUNT)"
@@ -489,7 +503,7 @@ deploy_phase1_networking() {
         az group create \
             --name "$RESOURCE_GROUP" \
             --location "$LOCATION" \
-            --tags Environment=Production Project=TKT-Philippines Owner="$ALERT_EMAIL" DeploymentId="$DEPLOYMENT_ID" Version="6.2" \
+            --tags Environment=Production Project=TKT-Philippines Owner="$ALERT_EMAIL" DeploymentId="$DEPLOYMENT_ID" Version="7.0" \
             --output none
         log SUCCESS "Resource group created"
     fi
@@ -521,6 +535,34 @@ deploy_phase1_networking() {
         log SUCCESS "NSG created"
     fi
     
+    # NSG rules - deny inbound RDP from internet, allow AVD outbound
+    log INFO "Configuring NSG rules..."
+    az network nsg rule create \
+        --resource-group "$RESOURCE_GROUP" \
+        --nsg-name "$NSG_NAME" \
+        --name "DenyRDPFromInternet" \
+        --priority 100 \
+        --direction Inbound \
+        --access Deny \
+        --protocol Tcp \
+        --source-address-prefixes Internet \
+        --destination-port-ranges 3389 \
+        --output none 2>/dev/null || true
+
+    az network nsg rule create \
+        --resource-group "$RESOURCE_GROUP" \
+        --nsg-name "$NSG_NAME" \
+        --name "AllowAVDServiceTraffic" \
+        --priority 110 \
+        --direction Outbound \
+        --access Allow \
+        --protocol Tcp \
+        --source-address-prefixes VirtualNetwork \
+        --destination-address-prefixes AzureCloud \
+        --destination-port-ranges 443 \
+        --output none 2>/dev/null || true
+    log SUCCESS "NSG rules configured"
+
     # Associate NSG with subnet
     log INFO "Associating NSG with subnet..."
     az network vnet subnet update \
@@ -561,20 +603,16 @@ deploy_phase2_storage() {
         log SUCCESS "Storage account created"
     fi
     
-    # FSLogix file share
+    # FSLogix file share (using Entra ID auth - no storage keys needed)
     log INFO "Creating FSLogix file share: $FSLOGIX_SHARE_NAME"
-    local storage_key=$(az storage account keys list \
-        --account-name "$STORAGE_ACCOUNT" \
-        --resource-group "$RESOURCE_GROUP" \
-        --query "[0].value" -o tsv)
-    
-    if az storage share show --name "$FSLOGIX_SHARE_NAME" --account-name "$STORAGE_ACCOUNT" --account-key "$storage_key" &>/dev/null; then
+
+    if az storage share show --name "$FSLOGIX_SHARE_NAME" --account-name "$STORAGE_ACCOUNT" --auth-mode login &>/dev/null; then
         log INFO "File share $FSLOGIX_SHARE_NAME already exists"
     else
-        az storage share create \
+        az storage share-rm create \
+            --resource-group "$RESOURCE_GROUP" \
+            --storage-account "$STORAGE_ACCOUNT" \
             --name "$FSLOGIX_SHARE_NAME" \
-            --account-name "$STORAGE_ACCOUNT" \
-            --account-key "$storage_key" \
             --quota "$FSLOGIX_QUOTA_GB" \
             --output none
         log SUCCESS "FSLogix file share created"
@@ -675,7 +713,12 @@ deploy_phase3_avd() {
         --registration-info expiration-time="$expiry_time" registration-token-operation="Update" \
         --query "registrationInfo.token" -o tsv)
     
+    if [[ -z "$REGISTRATION_TOKEN" || "$REGISTRATION_TOKEN" == "null" ]]; then
+        fail "Failed to generate registration token. Check host pool exists and you have sufficient permissions."
+    fi
+
     echo "$REGISTRATION_TOKEN" > "$REGISTRATION_TOKEN_FILE"
+    chmod 600 "$REGISTRATION_TOKEN_FILE"
     log SUCCESS "Registration token saved"
     
     # Application group
@@ -1159,7 +1202,7 @@ deploy_phase6_validation() {
 show_summary() {
     echo ""
     echo -e "${GREEN}╔═══════════════════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║                         DEPLOYMENT COMPLETE (V6.2)                            ║${NC}"
+    echo -e "${GREEN}║                          DEPLOYMENT COMPLETE (V7)                              ║${NC}"
     echo -e "${GREEN}╚═══════════════════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
     echo "  Resource Group:     $RESOURCE_GROUP"

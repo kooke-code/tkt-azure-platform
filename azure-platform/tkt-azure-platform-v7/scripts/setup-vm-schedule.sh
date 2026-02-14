@@ -26,7 +26,7 @@ set -e
 #-------------------------------------------------------------------------------
 
 RESOURCE_GROUP=""
-VM_PREFIX="tktph-sh"
+VM_PREFIX="vm-tktph"
 VM_COUNT=2
 LOCATION="southeastasia"
 DRY_RUN=false
@@ -234,11 +234,11 @@ create_start_runbook() {
     log INFO "Creating Start VM runbook..."
     
     local vm_list=""
-    for i in $(seq 0 $((VM_COUNT - 1))); do
-        vm_list+="\"${VM_PREFIX}-${i}\","
+    for i in $(seq 1 $VM_COUNT); do
+        vm_list+="\"${VM_PREFIX}-$(printf '%02d' $i)\","
     done
     vm_list=${vm_list%,}  # Remove trailing comma
-    
+
     local runbook_content='
 param(
     [string]$ResourceGroupName = "'"$RESOURCE_GROUP"'",
@@ -319,11 +319,11 @@ create_stop_runbook() {
     log INFO "Creating Stop VM runbook..."
     
     local vm_list=""
-    for i in $(seq 0 $((VM_COUNT - 1))); do
-        vm_list+="\"${VM_PREFIX}-${i}\","
+    for i in $(seq 1 $VM_COUNT); do
+        vm_list+="\"${VM_PREFIX}-$(printf '%02d' $i)\","
     done
     vm_list=${vm_list%,}
-    
+
     local runbook_content='
 param(
     [string]$ResourceGroupName = "'"$RESOURCE_GROUP"'",
@@ -494,8 +494,8 @@ print_summary() {
     echo "  └────────────────────────────────────────┘"
     echo ""
     echo "VMs Managed:"
-    for i in $(seq 0 $((VM_COUNT - 1))); do
-        echo "  • ${VM_PREFIX}-${i}"
+    for i in $(seq 1 $VM_COUNT); do
+        echo "  • ${VM_PREFIX}-$(printf '%02d' $i)"
     done
     echo ""
     echo "Monthly Cost: ~€5 (Automation Account)"

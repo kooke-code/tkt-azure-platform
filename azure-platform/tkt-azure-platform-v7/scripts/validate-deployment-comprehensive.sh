@@ -1,7 +1,7 @@
 #!/bin/bash
 #===============================================================================
 # TKT Philippines AVD - Comprehensive Validation Script
-# Version: 6.3
+# Version: 7.0
 # 
 # Validates all deployment components including:
 # - Infrastructure (RG, VNet, Storage)
@@ -519,7 +519,7 @@ main() {
     echo -e "${BLUE}╔═══════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${BLUE}║                                                               ║${NC}"
     echo -e "${BLUE}║     TKT Philippines AVD - Comprehensive Validation           ║${NC}"
-    echo -e "${BLUE}║                        Version 6.3                            ║${NC}"
+    echo -e "${BLUE}║                        Version 7.0                            ║${NC}"
     echo -e "${BLUE}║                                                               ║${NC}"
     echo -e "${BLUE}╚═══════════════════════════════════════════════════════════════╝${NC}"
     

@@ -1,7 +1,7 @@
 # Known Issues - TKT Philippines AVD Platform
 
-**Version:** 6.3  
-**Last Updated:** February 13, 2026
+**Version:** 7.0
+**Last Updated:** February 14, 2026
 
 ---
 

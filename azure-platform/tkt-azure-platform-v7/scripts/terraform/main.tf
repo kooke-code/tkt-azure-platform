@@ -313,8 +313,20 @@ resource "azurerm_route_table" "main" {
 # Associate Route Table with Workstation Subnet
 #-------------------------------------------------------------------------------
 
-resource "azurerm_subnet_route_table_association" "workstations" {
-  subnet_id      = "${data.azurerm_virtual_network.main.id}/subnets/snet-workstations"
+variable "avd_subnet_name" {
+  description = "Name of the AVD session host subnet to route through firewall"
+  type        = string
+  default     = "snet-avd"
+}
+
+data "azurerm_subnet" "avd" {
+  name                 = var.avd_subnet_name
+  virtual_network_name = data.azurerm_virtual_network.main.name
+  resource_group_name  = data.azurerm_resource_group.main.name
+}
+
+resource "azurerm_subnet_route_table_association" "avd" {
+  subnet_id      = data.azurerm_subnet.avd.id
   route_table_id = azurerm_route_table.main.id
 }
 

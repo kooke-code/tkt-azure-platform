@@ -2,7 +2,7 @@
 
 ## Version 6.3 (February 13, 2026)
 
-### 🔧 Critical Fixes
+### 🔴 Critical Fixes
 
 | Issue | Root Cause | Fix |
 |-------|-----------|-----|
@@ -13,43 +13,70 @@
 ### ✨ New Features
 
 - **Phase 4.5: Application Installation** - Automated installation of:
-  - Microsoft Teams (new Teams client)
+  - Microsoft Teams (new Teams client for AVD)
   - Microsoft 365 Apps (Office) with shared computer licensing
   - WebRTC Redirector for Teams media optimization
   - Teams AVD environment registry configuration
 
-- **Shared Drive** - Optional shared file share (`S:` drive) for all consultants
+- **Comprehensive Validation Script** - New `validate-deployment-comprehensive.sh`:
+  - 50+ automated checks across all components
+  - Auto-discovers resources (no hardcoded names)
+  - Checks: Infrastructure, AVD Control Plane, Session Hosts, Applications, Identity, Entra Devices
+  - Pass/Fail/Warning summary with percentage score
 
-- **Comprehensive Validation Script** - New `validate-deployment-comprehensive.sh` that checks:
-  - Infrastructure (VNet, NSG, Storage, Log Analytics)
-  - AVD Control Plane (Host Pool, Workspace, App Group, RDP properties)
-  - Session Hosts (VM status, Entra ID join, health checks)
-  - Applications (Teams, Office, WebRTC, FSLogix)
-  - Identity (Users, Groups, RBAC roles)
-  - Entra ID Devices
+- **Shared File Share** - Optional shared drive for consultant collaboration
 
-- **Dynamic Resource Discovery** - Validation script auto-discovers all resources instead of hardcoding names
+### 📋 Files Changed
 
-### 📋 Planned for V6.4
-
-- Folder redirection (Desktop/Documents → shared drive or OneDrive)
-- Single Sign-On (SSO) configuration for Entra ID join
-- Conditional Access policy templates
-- URL filtering with Microsoft Defender
-- Session recording to Azure Files
+| File | Change |
+|------|--------|
+| `scripts/deploy-avd-platform.sh` | Added V6.3 fixes + Phase 4.5 |
+| `scripts/validate-deployment-comprehensive.sh` | **NEW** - Dynamic validation |
+| `docs/known-issues.md` | Updated with resolved issues |
+| `CHANGELOG.md` | **NEW** |
 
 ---
 
 ## Version 6.2 (February 13, 2026)
 
 ### Initial Entra ID Join Support
-- Added managed identity to VMs
-- Added AADLoginForWindows extension
-- Added VM User Login RBAC role assignment
-- Fixed session host registration issues
+- Added managed identity to VMs (`--assign-identity`)
+- Added AADLoginForWindows extension for cloud-only join
+- Added Virtual Machine User Login RBAC role assignment
+- Fixed aadJoin parameter in DSC extension
+- Extended wait time for Entra ID join completion (90s + 15 retries)
+
+### Scripts Added
+- `fix-entra-id-join.sh` - Troubleshooting script for join issues
+- `setup-session-logging.sh` - Session recording setup
+- `setup-session-host-hardening.sh` - Security hardening
+- `setup-fslogix-profiles.sh` - Profile management
+- `setup-vm-schedule.sh` - Auto-shutdown configuration
+- `setup-avd-alerts.sh` - Monitoring alerts
+- `generate-deployment-report.sh` - Deployment documentation
+- `provision-avd-users.sh` - Bulk user provisioning
+- `setup-entra-id-automation.sh` - Entra ID automation
+- `transfer-ownership.sh` - Ownership transfer helper
 
 ---
 
 ## Version 6.1 and Earlier
 
-See previous documentation for V4-V6.1 changes.
+### V6.1
+- Initial automation framework
+- 6-phase deployment structure
+- Basic validation
+
+### V5.0
+- Semi-automated deployment
+- Manual Entra ID configuration required
+
+### V4.0
+- Complete redesign after V2 failure
+- Cost optimization (85% reduction)
+- Southeast Asia region deployment
+
+### V2.0 (Failed)
+- Windows Server approach
+- Network connectivity issues
+- Abandoned in favor of V4 redesign

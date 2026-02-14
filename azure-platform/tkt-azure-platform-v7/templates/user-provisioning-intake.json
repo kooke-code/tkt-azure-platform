@@ -1,0 +1,48 @@
+{
+  "$schema": "https://tktconsulting.com/schemas/user-intake-v1.json",
+  "description": "Fill in this template for each new consultant. Run with: ./provision-avd-users.sh users.json",
+  "version": "1.0",
+  "users": [
+    {
+      "firstName": "John",
+      "lastName": "Doe",
+      "personalEmail": "john.doe@gmail.com",
+      "phoneNumber": "+63 912 345 6789",
+      "jobTitle": "SAP Consultant",
+      "customerAssignment": "Customer-001",
+      "startDate": "2026-03-01",
+      "notes": "First hire for Customer-001 project"
+    },
+    {
+      "firstName": "Jane",
+      "lastName": "Doe",
+      "personalEmail": "jane.doe@gmail.com",
+      "phoneNumber": "+63 912 987 6543",
+      "jobTitle": "SAP Consultant",
+      "customerAssignment": "Customer-001",
+      "startDate": "2026-03-01",
+      "notes": ""
+    }
+  ],
+  "_fieldGuide": {
+    "firstName": "Required - Given name",
+    "lastName": "Required - Family name", 
+    "personalEmail": "Required - For password reset and notifications. NOT the work email (that gets created)",
+    "phoneNumber": "Optional - For MFA SMS backup. Include country code",
+    "jobTitle": "Optional - Shows in Teams/Outlook profile",
+    "customerAssignment": "Required - Which customer they work for. Must match existing customer group",
+    "startDate": "Optional - YYYY-MM-DD format. Account created but disabled until this date",
+    "notes": "Optional - Internal notes, not visible to user"
+  },
+  "_whatGetsCreated": {
+    "entraAccount": "{firstName}.{lastName}@yourdomain.onmicrosoft.com",
+    "displayName": "{firstName} {lastName}",
+    "groups": [
+      "AVD-Users (virtual desktop access)",
+      "Customer-{customerAssignment}-Team (customer-specific resources)"
+    ],
+    "license": "Microsoft 365 Business Premium",
+    "mfa": "Required - user sets up on first login",
+    "fslogixProfile": "Created automatically on first AVD login"
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2021-07-01/conditionalAccessPolicy.json",
+  "version": "6.2",
+  "description": "Conditional Access policies for TKT Philippines AVD",
+  
+  "namedLocations": [
+    {
+      "displayName": "Philippines",
+      "countriesAndRegions": ["PH"],
+      "includeUnknownCountriesAndRegions": false
+    },
+    {
+      "displayName": "Belgium", 
+      "countriesAndRegions": ["BE"],
+      "includeUnknownCountriesAndRegions": false
+    }
+  ],
+  
+  "policies": [
+    {
+      "displayName": "TKT-PH-AVD-Require-MFA",
+      "description": "Require MFA for all TKT Philippines AVD users",
+      "state": "enabledForReportingButNotEnforced",
+      "conditions": {
+        "applications": {
+          "includeApplications": ["9cdead84-a844-4324-93f2-b2e6bb768d07"]
+        },
+        "users": {
+          "includeGroups": ["TKT-Philippines-AVD-Users"],
+          "excludeRoles": ["62e90394-69f5-4237-9190-012177145e10"]
+        },
+        "locations": {
+          "includeLocations": ["All"]
+        },
+        "clientAppTypes": ["browser", "mobileAppsAndDesktopClients"]
+      },
+      "grantControls": {
+        "operator": "OR",
+        "builtInControls": ["mfa"]
+      },
+      "sessionControls": {
+        "signInFrequency": {
+          "value": 8,
+          "type": "hours",
+          "isEnabled": true
+        }
+      }
+    },
+    {
+      "displayName": "TKT-PH-AVD-Location-Restriction",
+      "description": "Block AVD access from outside Philippines and Belgium",
+      "state": "enabledForReportingButNotEnforced",
+      "conditions": {
+        "applications": {
+          "includeApplications": ["9cdead84-a844-4324-93f2-b2e6bb768d07"]
+        },
+        "users": {
+          "includeGroups": ["TKT-Philippines-AVD-Users"],
+          "excludeRoles": ["62e90394-69f5-4237-9190-012177145e10"]
+        },
+        "locations": {
+          "includeLocations": ["All"],
+          "excludeLocations": ["Philippines", "Belgium"]
+        }
+      },
+      "grantControls": {
+        "operator": "OR",
+        "builtInControls": ["block"]
+      }
+    },
+    {
+      "displayName": "TKT-PH-AVD-Block-Legacy-Auth",
+      "description": "Block legacy authentication for AVD",
+      "state": "enabledForReportingButNotEnforced",
+      "conditions": {
+        "applications": {
+          "includeApplications": ["9cdead84-a844-4324-93f2-b2e6bb768d07"]
+        },
+        "users": {
+          "includeGroups": ["TKT-Philippines-AVD-Users"]
+        },
+        "clientAppTypes": ["exchangeActiveSync", "other"]
+      },
+      "grantControls": {
+        "operator": "OR",
+        "builtInControls": ["block"]
+      }
+    }
+  ],
+  
+  "notes": {
+    "avdAppId": "9cdead84-a844-4324-93f2-b2e6bb768d07 is Azure Virtual Desktop",
+    "globalAdminRole": "62e90394-69f5-4237-9190-012177145e10 excluded to prevent lockout",
+    "deploymentMode": "Report-only mode by default. Change to 'enabled' after testing.",
+    "allowedCountries": ["Philippines (PH)", "Belgium (BE)"]
+  }
+}

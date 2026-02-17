@@ -1,0 +1,49 @@
+{
+  "_comment": "TKT Philippines AVD Platform V9 - User Configuration Template",
+  "_instructions": "Copy this file to users.json and customize. The deploy script will read this file to create users with real names instead of generic IDs.",
+  "domain": "tktconsulting.be",
+  "security_group": "TKT-Philippines-AVD-Users",
+  "users": [
+    {
+      "username": "ph-consultant-001",
+      "display_name": "Maria Santos",
+      "role": "P2P",
+      "job_title": "SAP P2P Consultant"
+    },
+    {
+      "username": "ph-consultant-002",
+      "display_name": "Juan Dela Cruz",
+      "role": "P2P",
+      "job_title": "SAP P2P Consultant"
+    },
+    {
+      "username": "ph-consultant-003",
+      "display_name": "Ana Reyes",
+      "role": "R2R",
+      "job_title": "SAP R2R Consultant"
+    },
+    {
+      "username": "ph-consultant-004",
+      "display_name": "Carlo Garcia",
+      "role": "R2R",
+      "job_title": "SAP R2R Consultant"
+    },
+    {
+      "username": "ph-consultant-005",
+      "display_name": "Isabella Cruz",
+      "role": "P2P",
+      "job_title": "SAP P2P Consultant"
+    },
+    {
+      "username": "ph-consultant-006",
+      "display_name": "Miguel Torres",
+      "role": "R2R",
+      "job_title": "SAP R2R Consultant"
+    }
+  ],
+  "break_glass": {
+    "enabled": true,
+    "username": "tktph-breakglass",
+    "display_name": "TKT PH Break Glass Admin"
+  }
+}

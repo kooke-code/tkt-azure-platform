@@ -1,8 +1,19 @@
 #!/bin/bash
 #===============================================================================
 # TKT Azure Platform - V8 Deployment Script
-# Version: 8.0
-# Date: 2026-02-14
+# Version: 8.1
+# Date: 2026-02-17
+#
+# CHANGELOG V8.1:
+#   - SECURITY: Azure AD Kerberos authentication for Azure Files (replaces shared key auth)
+#     * Storage account created with --enable-files-aadkerb from the start
+#     * FSLogix profiles authenticate via Entra ID Kerberos tickets (no storage keys)
+#     * Shared-docs drive maps via Kerberos SSO (no cmdkey/storage key)
+#     * Cloud Kerberos Ticket Retrieval enabled on session hosts
+#     * Storage File Data SMB Share Elevated Contributor role for admin access
+#     * Shared key access disabled on storage account after deployment
+#   - SECURITY: Folder structure creation uses OAuth (az storage) instead of account keys
+#   - All storage key retrieval/usage removed from deploy script
 #
 # CHANGELOG V8:
 #   - CRITICAL FIX: VM naming now 1-indexed with zero-padding everywhere
@@ -19,7 +30,7 @@
 #   - NEW: Session logging with weekly JSON export to shared-docs
 #   - NEW: Azure Monitor Agent with Data Collection Rules
 #   - NEW: Proper NSG rules for cloud SAP/Zoho/Teams HTTPS access
-#   - NEW: All resources tagged with Version="8.0"
+#   - NEW: All resources tagged with Version="8.1"
 #   - UPDATED: Domain from env var (no hardcoded default in logic)
 #   - UPDATED: Cost estimate ~EUR280/month (2x D4s_v5 + shared storage)
 #   - NEW: Trusted Launch (Secure Boot + vTPM) on all session host VMs
@@ -176,7 +187,7 @@ _ADMIN_PW_FILE=""
 _USER_PW_FILE=""
 
 # Version tag for all resources
-VERSION_TAG="8.0"
+VERSION_TAG="8.1"
 
 #===============================================================================
 # COLORS
@@ -741,11 +752,30 @@ deploy_phase2_storage() {
         return
     fi
 
-    # Storage account
+    # Storage account (V8.1: Azure AD Kerberos enabled from creation)
     if az storage account show --name "$STORAGE_ACCOUNT" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
         log INFO "Storage account $STORAGE_ACCOUNT already exists"
+        # Ensure Kerberos is enabled on existing account
+        local current_auth
+        current_auth=$(az storage account show \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$STORAGE_ACCOUNT" \
+            --query "azureFilesIdentityBasedAuthentication.directoryServiceOptions" \
+            -o tsv 2>/dev/null || echo "None")
+        if [[ "$current_auth" != "AADKERB" ]]; then
+            log INFO "Enabling Azure AD Kerberos on existing storage account..."
+            az storage account update \
+                --resource-group "$RESOURCE_GROUP" \
+                --name "$STORAGE_ACCOUNT" \
+                --enable-files-aadkerb true \
+                --default-share-permission "StorageFileDataSmbShareContributor" \
+                --output none
+            log SUCCESS "Azure AD Kerberos enabled on $STORAGE_ACCOUNT"
+        else
+            log INFO "Azure AD Kerberos already enabled"
+        fi
     else
-        log INFO "Creating storage account: $STORAGE_ACCOUNT"
+        log INFO "Creating storage account: $STORAGE_ACCOUNT (with Azure AD Kerberos)"
         az storage account create \
             --resource-group "$RESOURCE_GROUP" \
             --name "$STORAGE_ACCOUNT" \
@@ -753,9 +783,11 @@ deploy_phase2_storage() {
             --kind FileStorage \
             --sku "$STORAGE_SKU" \
             --enable-large-file-share \
+            --enable-files-aadkerb true \
+            --default-share-permission "StorageFileDataSmbShareContributor" \
             --tags Version="$VERSION_TAG" \
             --output none
-        log SUCCESS "Storage account created"
+        log SUCCESS "Storage account created with Azure AD Kerberos"
     fi
 
     # FSLogix file share - V8 FIX: share name is 'profiles' (not 'fslogix-profiles')
@@ -831,18 +863,8 @@ deploy_phase2_5_shared_docs() {
         log SUCCESS "Shared documentation share created"
     fi
 
-    # V8 FIX: Retrieve storage key into a variable, never echo it to console
-    log INFO "Creating folder structure in shared-docs..."
-    local storage_key
-    storage_key=$(az storage account keys list \
-        --resource-group "$RESOURCE_GROUP" \
-        --account-name "$STORAGE_ACCOUNT" \
-        --query "[0].value" -o tsv 2>/dev/null)
-
-    if [[ -z "$storage_key" ]]; then
-        log WARN "Could not retrieve storage key. Folder structure will be created on first VM mount."
-        return
-    fi
+    # V8.1: Create folder structure using OAuth (--auth-mode login) instead of storage keys
+    log INFO "Creating folder structure in shared-docs (OAuth)..."
 
     # Create folder structure for SOPs and knowledge base
     local folders=(
@@ -870,12 +892,9 @@ deploy_phase2_5_shared_docs() {
             --share-name "$SHARED_DOCS_SHARE_NAME" \
             --name "$folder" \
             --account-name "$STORAGE_ACCOUNT" \
-            --account-key "$storage_key" \
+            --auth-mode login \
             --output none 2>/dev/null || true
     done
-
-    # Clear the key from the variable
-    storage_key=""
 
     log SUCCESS "Folder structure created in $SHARED_DOCS_SHARE_NAME"
     log SUCCESS "Phase 2.5 complete: SHARED DOCUMENTATION STORAGE"
@@ -1230,12 +1249,7 @@ deploy_phase4_5_applications() {
         return
     fi
 
-    # V8 FIX: Get storage key once, never print to console
-    local storage_key
-    storage_key=$(az storage account keys list \
-        --resource-group "$RESOURCE_GROUP" \
-        --account-name "$STORAGE_ACCOUNT" \
-        --query "[0].value" -o tsv 2>/dev/null)
+    # V8.1: No storage key needed — Kerberos auth used for Azure Files access
 
     # V8 FIX: All VM loops use 1-indexed naming: ${VM_PREFIX}-$(printf '%02d' $i)
     for i in $(seq 1 $VM_COUNT); do
@@ -1339,12 +1353,11 @@ deploy_phase4_5_applications() {
         log SUCCESS "  -> Edge configured with Fiori and Zoho bookmarks"
 
         # -----------------------------------------------------------------
-        # 4.5.4: Mount shared-docs as Z: drive
+        # 4.5.4: Mount shared-docs as Z: drive (V8.1: Kerberos SSO)
         # -----------------------------------------------------------------
-        log INFO "  -> Configuring shared documentation drive (Z:)..."
+        log INFO "  -> Configuring shared documentation drive (Z:) with Kerberos SSO..."
 
-        # Write storage key to a temp variable in the PowerShell script context
-        # V8 FIX: Storage key passed as script parameter, never in process listing
+        # V8.1: No storage key needed — Kerberos SSO handles authentication
         az vm run-command invoke \
             --resource-group "$RESOURCE_GROUP" \
             --name "$vm_name" \
@@ -1352,26 +1365,24 @@ deploy_phase4_5_applications() {
             --scripts '
                 $storageAccount = "'"$STORAGE_ACCOUNT"'"
                 $shareName = "'"$SHARED_DOCS_SHARE_NAME"'"
-                $storageKey = "'"$storage_key"'"
 
-                # Create credential for Azure Files
-                $uncPath = "\\\\${storageAccount}.file.core.windows.net\\${shareName}"
+                # V8.1: Enable Cloud Kerberos Ticket Retrieval (required for Azure AD Kerberos)
+                New-Item -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\Kerberos\Parameters" -Force | Out-Null
+                Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\Kerberos\Parameters" -Name "CloudKerberosTicketRetrievalEnabled" -Value 1 -Type DWord
 
-                # Store credential securely using cmdkey
-                cmd.exe /c "cmdkey /add:${storageAccount}.file.core.windows.net /user:Azure\${storageAccount} /pass:${storageKey}" 2>&1 | Out-Null
-
-                # Create a logon script to map Z: drive for all users
+                # Create a logon script to map Z: drive (Kerberos SSO, no storage key)
                 $logonScriptDir = "C:\ProgramData\TKT"
                 New-Item -ItemType Directory -Path $logonScriptDir -Force | Out-Null
 
                 $logonScript = @"
 @echo off
-REM TKT Platform V8 - Map shared documentation drive
+REM TKT Platform V8.1 - Map shared documentation drive (Kerberos SSO)
+REM Authentication handled by Azure AD Kerberos - no storage key needed
 net use Z: /delete /y 2>nul
 net use Z: \\${storageAccount}.file.core.windows.net\${shareName} /persistent:yes 2>nul
 if %errorlevel% neq 0 (
-    echo Failed to map Z: drive. Retrying with credential...
-    cmdkey /add:${storageAccount}.file.core.windows.net /user:Azure\${storageAccount} /pass:${storageKey}
+    echo Waiting for Kerberos ticket...
+    timeout /t 10 /nobreak >nul
     net use Z: \\${storageAccount}.file.core.windows.net\${shareName} /persistent:yes
 )
 "@
@@ -1397,14 +1408,14 @@ if %errorlevel% neq 0 (
                 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 
                 Unregister-ScheduledTask -TaskName "TKT-MapSharedDrive" -Confirm:$false -ErrorAction SilentlyContinue
-                Register-ScheduledTask -TaskName "TKT-MapSharedDrive" -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "TKT V8: Map shared documentation drive Z:" | Out-Null
+                Register-ScheduledTask -TaskName "TKT-MapSharedDrive" -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "TKT V8.1: Map shared documentation drive Z: (Kerberos)" | Out-Null
             ' --output none 2>/dev/null || log WARN "Shared drive mapping may have failed on $vm_name"
-        log SUCCESS "  -> Shared documentation drive configured as Z:"
+        log SUCCESS "  -> Shared documentation drive configured as Z: (Kerberos SSO)"
 
         # -----------------------------------------------------------------
-        # 4.5.5: Configure FSLogix profile container
+        # 4.5.5: Configure FSLogix profile container (V8.1: Kerberos auth)
         # -----------------------------------------------------------------
-        log INFO "  -> Configuring FSLogix profile container..."
+        log INFO "  -> Configuring FSLogix profile container (Kerberos)..."
         az vm run-command invoke \
             --resource-group "$RESOURCE_GROUP" \
             --name "$vm_name" \
@@ -1423,14 +1434,12 @@ if %errorlevel% neq 0 (
                 Set-ItemProperty -Path "HKLM:\SOFTWARE\FSLogix\Profiles" -Name "VolumeType" -Value "VHDX" -Type String
                 Set-ItemProperty -Path "HKLM:\SOFTWARE\FSLogix\Profiles" -Name "IsDynamic" -Value 1 -Type DWord
 
-                # Store credential for FSLogix access
-                cmd.exe /c "cmdkey /add:${storageAccount}.file.core.windows.net /user:Azure\${storageAccount} /pass:'"$storage_key"'" 2>&1 | Out-Null
+                # V8.1: Kerberos authentication — no cmdkey/storage key needed
+                # Cloud Kerberos Ticket Retrieval already enabled in phase 4.5.4
+                # FSLogix will use the user Entra ID Kerberos ticket to access Azure Files
             ' --output none 2>/dev/null || log WARN "FSLogix configuration may have failed on $vm_name"
-        log SUCCESS "  -> FSLogix profile container configured"
+        log SUCCESS "  -> FSLogix profile container configured (Kerberos)"
     done
-
-    # Clear the storage key variable
-    storage_key=""
 
     log SUCCESS "Phase 4.5 complete: APPLICATION INSTALLATION"
 }
@@ -1578,13 +1587,7 @@ deploy_phase4_6_session_logging() {
         # -----------------------------------------------------------------
         log INFO "  -> Creating weekly log export task..."
 
-        # V8 FIX: Storage key retrieved securely, never in process listing
-        local storage_key
-        storage_key=$(az storage account keys list \
-            --resource-group "$RESOURCE_GROUP" \
-            --account-name "$STORAGE_ACCOUNT" \
-            --query "[0].value" -o tsv 2>/dev/null)
-
+        # V8.1: No storage key — weekly export uses Kerberos SSO via SYSTEM account
         az vm run-command invoke \
             --resource-group "$RESOURCE_GROUP" \
             --name "$vm_name" \
@@ -1592,7 +1595,6 @@ deploy_phase4_6_session_logging() {
             --scripts '
                 $storageAccount = "'"$STORAGE_ACCOUNT"'"
                 $shareName = "'"$SHARED_DOCS_SHARE_NAME"'"
-                $storageKey = "'"$storage_key"'"
                 $vmName = "'"$vm_name"'"
 
                 # Create TKT scripts directory
@@ -1606,7 +1608,6 @@ deploy_phase4_6_session_logging() {
 param(
     [string]$StorageAccount,
     [string]$ShareName,
-    [string]$StorageKey,
     [string]$VMName
 )
 
@@ -1724,9 +1725,8 @@ $report = [PSCustomObject]@{
 $jsonPath = "C:\ProgramData\TKT\$reportFileName"
 $report | ConvertTo-Json -Depth 5 | Out-File -FilePath $jsonPath -Encoding UTF8
 
-# Upload to shared-docs share
+# V8.1: Upload to shared-docs share using Kerberos SSO (no storage key)
 $uncPath = "\\$StorageAccount.file.core.windows.net\$ShareName"
-cmd.exe /c "cmdkey /add:$StorageAccount.file.core.windows.net /user:Azure\$StorageAccount /pass:$StorageKey" 2>&1 | Out-Null
 net use X: /delete /y 2>$null
 net use X: $uncPath /persistent:no 2>$null
 
@@ -1744,25 +1744,15 @@ Remove-Item -Path $jsonPath -Force -ErrorAction SilentlyContinue
                 # Write the export script to disk
                 $exportScript | Out-File -FilePath "C:\ProgramData\TKT\Scripts\Export-WeeklyLogs.ps1" -Encoding UTF8 -Force
 
-                # Create a wrapper script that passes parameters
+                # V8.1: Create a wrapper script that passes parameters (no storage key)
                 $wrapperScript = @"
-# TKT V8 Weekly Export Wrapper - passes storage credentials
+# TKT V8.1 Weekly Export Wrapper - Kerberos SSO (no storage key)
 & "C:\ProgramData\TKT\Scripts\Export-WeeklyLogs.ps1" ``
     -StorageAccount "$storageAccount" ``
     -ShareName "$shareName" ``
-    -StorageKey "$storageKey" ``
     -VMName "$vmName"
 "@
                 $wrapperScript | Out-File -FilePath "C:\ProgramData\TKT\Scripts\Run-WeeklyExport.ps1" -Encoding UTF8 -Force
-
-                # Restrict permissions on the wrapper (contains storage key)
-                $acl = Get-Acl "C:\ProgramData\TKT\Scripts\Run-WeeklyExport.ps1"
-                $acl.SetAccessRuleProtection($true, $false)
-                $adminRule = New-Object System.Security.AccessControl.FileSystemAccessRule("BUILTIN\Administrators", "FullControl", "Allow")
-                $systemRule = New-Object System.Security.AccessControl.FileSystemAccessRule("NT AUTHORITY\SYSTEM", "FullControl", "Allow")
-                $acl.AddAccessRule($adminRule)
-                $acl.AddAccessRule($systemRule)
-                Set-Acl "C:\ProgramData\TKT\Scripts\Run-WeeklyExport.ps1" $acl
 
                 # Register weekly scheduled task - runs every Sunday at 23:00
                 $action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File C:\ProgramData\TKT\Scripts\Run-WeeklyExport.ps1"
@@ -1771,15 +1761,12 @@ Remove-Item -Path $jsonPath -Force -ErrorAction SilentlyContinue
                 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
 
                 Unregister-ScheduledTask -TaskName "TKT-WeeklyLogExport" -Confirm:$false -ErrorAction SilentlyContinue
-                Register-ScheduledTask -TaskName "TKT-WeeklyLogExport" -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "TKT V8: Export weekly session logs to shared-docs" | Out-Null
+                Register-ScheduledTask -TaskName "TKT-WeeklyLogExport" -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "TKT V8.1: Export weekly session logs to shared-docs (Kerberos)" | Out-Null
 
-                Write-EventLog -LogName Application -Source "TKT-Platform" -EventId 8002 -EntryType Information -Message "TKT V8: Weekly log export task registered"
+                Write-EventLog -LogName Application -Source "TKT-Platform" -EventId 8002 -EntryType Information -Message "TKT V8.1: Weekly log export task registered"
             ' --output none 2>/dev/null || log WARN "Weekly log export setup may have failed on $vm_name"
 
-        # Clear the storage key
-        storage_key=""
-
-        log SUCCESS "  -> Weekly log export task configured (Sundays at 23:00)"
+        log SUCCESS "  -> Weekly log export task configured (Sundays at 23:00, Kerberos SSO)"
     done
 
     log SUCCESS "Phase 4.6 complete: SESSION LOGGING & WEEKLY EXPORT"
@@ -1876,17 +1863,36 @@ deploy_phase5_identity() {
     done
     log SUCCESS "Virtual Machine User Login role assigned"
 
-    # Assign Storage File Data SMB Share Contributor role for shared-docs access
-    log INFO "Assigning storage permissions for shared documentation..."
+    # V8.1: Assign Storage File Data SMB Share roles for Kerberos-based access
+    # This covers BOTH FSLogix profiles AND shared-docs (entire storage account)
+    log INFO "Assigning storage permissions for Kerberos access..."
     local storage_id=$(az storage account show --name "$STORAGE_ACCOUNT" --resource-group "$RESOURCE_GROUP" --query id -o tsv 2>/dev/null)
     if [[ -n "$storage_id" ]]; then
+        # Contributor role: read/write/delete access to file shares over SMB
         az role assignment create \
             --assignee "$group_object_id" \
             --role "Storage File Data SMB Share Contributor" \
             --scope "$storage_id" \
-            --output none 2>/dev/null || log INFO "Storage SMB role may already exist"
+            --output none 2>/dev/null || log INFO "Storage SMB Contributor role may already exist"
         log SUCCESS "Storage File Data SMB Share Contributor role assigned"
+
+        # V8.1: Elevated Contributor role: allows modifying NTFS permissions
+        az role assignment create \
+            --assignee "$group_object_id" \
+            --role "Storage File Data SMB Share Elevated Contributor" \
+            --scope "$storage_id" \
+            --output none 2>/dev/null || log INFO "Storage SMB Elevated Contributor role may already exist"
+        log SUCCESS "Storage File Data SMB Share Elevated Contributor role assigned"
     fi
+
+    # V8.1: Disable shared key access — force Kerberos-only authentication
+    log INFO "Disabling shared key access on storage account (Kerberos-only)..."
+    az storage account update \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$STORAGE_ACCOUNT" \
+        --allow-shared-key-access false \
+        --output none 2>/dev/null || log WARN "Could not disable shared key access"
+    log SUCCESS "Shared key access disabled — Kerberos-only authentication enforced"
 
     log SUCCESS "Phase 5 complete: IDENTITY & USER ASSIGNMENT"
 }

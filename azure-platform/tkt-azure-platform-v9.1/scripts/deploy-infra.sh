@@ -296,6 +296,11 @@ check_prerequisites() {
 #===============================================================================
 
 validate_track_a() {
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log INFO "[DRY RUN] Would validate Track A: security group '$SECURITY_GROUP_NAME' exists"
+        return
+    fi
+
     log INFO "Validating Track A (identity) has been completed..."
 
     local group_id=$(az ad group show --group "$SECURITY_GROUP_NAME" --query "id" -o tsv 2>/dev/null || echo "")

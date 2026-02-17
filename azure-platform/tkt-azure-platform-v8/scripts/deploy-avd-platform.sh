@@ -1705,7 +1705,7 @@ $report = [PSCustomObject]@{
         ReportDate = $reportDate
         PeriodStart = $startDate.ToString("yyyy-MM-ddTHH:mm:ssZ")
         PeriodEnd = $endDate.ToString("yyyy-MM-ddTHH:mm:ssZ")
-        PlatformVersion = "8.0"
+        PlatformVersion = "8.1"
         GeneratedAt = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ssZ")
     }
     UserSessions = $sessions

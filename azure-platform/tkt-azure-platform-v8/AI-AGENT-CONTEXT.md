@@ -48,15 +48,27 @@ helping consultants, or reviewing operations for this platform.
 - Microsoft 365 Apps (Excel critical for reconciliations)
 - No SAP GUI installed (S/4HANA Public Cloud = Fiori only)
 
-### Storage
+### Storage (V8.1: Kerberos Authentication)
 - **FSLogix profiles**: `\\sttktphfslogix.file.core.windows.net\profiles` (100GB)
-- **Shared docs**: `\\sttktphfslogix.file.core.windows.net\shared-docs` (50GB, mounted as S:\)
+- **Shared docs**: `\\sttktphfslogix.file.core.windows.net\shared-docs` (50GB, mounted as Z:\)
+- **Authentication**: Azure AD Kerberos (identity-based). No storage account keys used.
+- **RBAC**: Users have `Storage File Data SMB Share Contributor` role (read/write/delete via Entra ID)
+- **Shared key access**: Disabled on storage account. Only Kerberos/RBAC authentication works.
 
-### Network
+### Network (V8.1: Azure Firewall)
 - All SAP access is HTTPS to S/4HANA Public Cloud endpoints
 - Zoho Desk access is HTTPS
 - No VPN/ExpressRoute needed (all cloud services)
-- NSG restricts outbound to HTTPS only
+- **Azure Firewall** provides FQDN-based outbound filtering (Layer 7):
+  - AVD service traffic (`*.wvd.microsoft.com`)
+  - Azure authentication (`login.microsoftonline.com`)
+  - Azure Files (`*.file.core.windows.net`)
+  - SAP Fiori (`*.s4hana.cloud.sap`)
+  - Zoho Desk (`*.zoho.com`)
+  - Microsoft 365/Teams (`*.teams.microsoft.com`, `*.office365.com`)
+  - All other outbound traffic is **denied**
+- NSG provides additional Layer 3/4 defense-in-depth
+- Route table forces all outbound traffic through Azure Firewall
 
 ## When Analyzing Session Logs
 

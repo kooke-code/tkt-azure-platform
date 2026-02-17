@@ -1,8 +1,8 @@
 #!/bin/bash
 #===============================================================================
 # TKT Azure Platform - POC Destruction Script
-# Version: 8.0
-# Date: 2026-02-14
+# Version: 8.1
+# Date: 2026-02-17
 #
 # DESCRIPTION:
 #   Completely removes all Azure resources created by the deployment script.
@@ -13,6 +13,7 @@
 #   - AVD host pool, workspace, and application group
 #   - Storage account (FSLogix profiles + shared docs)
 #   - Log Analytics workspace and data collection rules
+#   - Azure Firewall, firewall policy, route table (V8.1)
 #   - NSG, VNet, and all networking
 #   - Entra ID users (ph-consultant-001 through 004)
 #   - Entra ID security group
@@ -401,11 +402,56 @@ delete_scaling_plan() {
 }
 
 #===============================================================================
+# STEP 4.5: DELETE AZURE FIREWALL (V8.1 - must be before RG delete)
+#===============================================================================
+
+delete_firewall() {
+    log INFO "Step 4.5/6: Deleting Azure Firewall resources (if deployed)..."
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log INFO "[DRY RUN] Would delete firewall, firewall policy, route table, public IPs"
+        return
+    fi
+
+    # Remove route table association from AVD subnet first
+    az network vnet subnet update \
+        --resource-group "$RESOURCE_GROUP" \
+        --vnet-name "vnet-tktph-avd-sea" \
+        --name "snet-avd" \
+        --remove routeTable 2>/dev/null || log INFO "No route table association (or already removed)"
+
+    # Delete firewall (takes 5+ minutes)
+    az network firewall delete \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "fw-tktph-avd-sea" 2>/dev/null || log INFO "No firewall found (or already deleted)"
+
+    # Delete firewall policy
+    az network firewall policy delete \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "fwpol-tktph-avd" 2>/dev/null || log INFO "No firewall policy found"
+
+    # Delete route table
+    az network route-table delete \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "rt-tktph-avd-fw" 2>/dev/null || log INFO "No route table found"
+
+    # Delete firewall public IPs
+    az network public-ip delete \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "pip-fw-tktph-avd" 2>/dev/null || true
+    az network public-ip delete \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "pip-fw-tktph-avd-mgmt" 2>/dev/null || true
+
+    log SUCCESS "Azure Firewall resources cleaned up"
+}
+
+#===============================================================================
 # STEP 5: DELETE RESOURCE GROUP (removes everything else)
 #===============================================================================
 
 delete_resource_group() {
-    log INFO "Step 5/5: Deleting resource group (this removes all Azure resources)..."
+    log INFO "Step 5/6: Deleting resource group (this removes all Azure resources)..."
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY RUN] Would delete resource group: $RESOURCE_GROUP"
@@ -490,6 +536,7 @@ main() {
     deallocate_vms
     delete_entra_resources
     delete_scaling_plan
+    delete_firewall
     delete_resource_group
     show_destruction_summary
 }

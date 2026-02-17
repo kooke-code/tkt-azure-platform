@@ -1,6 +1,6 @@
 {
   "description": "KQL queries for weekly session log export. Used by the scheduled task on AVD session hosts to generate weekly reports for AI analysis.",
-  "version": "8.0",
+  "version": "8.1",
   "schedule": "Every Sunday at 23:00 UTC",
   "output_path": "S:\\weekly-reports\\",
   "queries": {

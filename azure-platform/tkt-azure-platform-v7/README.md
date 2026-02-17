@@ -1,5 +1,9 @@
 # TKT Philippines AVD Platform V7
 
+> **ARCHIVED**: This version is superseded by [V8.1](../tkt-azure-platform-v8/README.md)
+> which adds Azure AD Kerberos authentication and Azure Firewall.
+> V7 uses storage account keys (deprecated). Use V8.1 for all new deployments.
+
 Fully automated Azure Virtual Desktop deployment for SAP consultants
 
 ![version](https://img.shields.io/badge/version-7.0-blue)

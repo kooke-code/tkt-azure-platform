@@ -1,5 +1,79 @@
 # TKT Philippines AVD Platform - Changelog
 
+## Version 8.1 (February 17, 2026)
+
+### Security: Azure AD Kerberos + Azure Firewall
+
+V8.1 is a security-focused update that eliminates shared key authentication and adds
+Layer 7 outbound filtering via Azure Firewall.
+
+### Authentication: Azure AD Kerberos (replaces shared keys)
+
+| Component | V8.0 | V8.1 |
+|-----------|------|------|
+| Storage auth | Storage account keys (cmdkey) | Azure AD Kerberos (identity-based) |
+| FSLogix profiles | Key-based UNC access | Kerberos ticket via Entra ID |
+| Shared-docs drive | cmdkey + storage key logon script | Kerberos SSO (no credentials) |
+| Weekly log export | Storage key in wrapper script | Kerberos SSO via SYSTEM account |
+| Folder creation | `--account-key` parameter | `--auth-mode login` (OAuth) |
+| Shared key access | Enabled | **Disabled** after deployment |
+| RBAC roles | SMB Share Contributor | + SMB Share Elevated Contributor |
+
+### Changes to `deploy-avd-platform.sh`
+
+- Phase 2: Storage account created with `--enable-files-aadkerb` + default share permission
+- Phase 2.5: Folder creation uses OAuth (`--auth-mode login`) instead of account keys
+- Phase 4.5.4: Cloud Kerberos Ticket Retrieval enabled on session hosts
+- Phase 4.5.4: Shared-docs Z: drive mapped via Kerberos SSO (no cmdkey)
+- Phase 4.5.5: FSLogix configured without storage key (Kerberos authentication)
+- Phase 4.6: Weekly export wrapper no longer contains storage key
+- Phase 5: Added `Storage File Data SMB Share Elevated Contributor` role
+- Phase 5: Shared key access disabled on storage account after deployment
+- All `storage_key` variable usage removed from script
+
+### New Script: `deploy-azure-firewall.sh`
+
+Separate deployment script for Azure Firewall with FQDN-based application rules:
+
+- **8 phases**: Subnet, Firewall, App Rules, Network Rules, Routing, NSG, Diagnostics, Validation
+- **Application rules** (FQDN Layer 7 filtering):
+  - AVD service (`*.wvd.microsoft.com`, `*.servicebus.windows.net`)
+  - Azure authentication (`login.microsoftonline.com`, `*.msauth.net`)
+  - Azure Files (`*.file.core.windows.net`)
+  - SAP Fiori (`*.s4hana.cloud.sap`, `*.sap.com`)
+  - Zoho Desk (`*.zoho.com`, `*.zohocdn.com`)
+  - Microsoft 365/Teams (`*.teams.microsoft.com`, `*.office365.com`)
+  - Windows Update (`*.windowsupdate.com`, `kms.core.windows.net`)
+- **Network rules** (non-HTTP protocols):
+  - Teams TURN/STUN (UDP 3478-3481)
+  - Teams media (TCP 50000-50059)
+  - Azure Files SMB (TCP 445 → Storage.SoutheastAsia)
+  - DNS (UDP/TCP 53), NTP (UDP 123)
+- **Route table**: 0.0.0.0/0 → Azure Firewall private IP
+- **SKU options**: Basic (~EUR 280/month) or Standard (~EUR 900/month)
+- **Diagnostics**: Logs to existing Log Analytics workspace
+
+### Cost Impact
+
+| Configuration | Monthly Cost |
+|---------------|-------------|
+| V8 (no firewall) | ~EUR 280/month |
+| V8.1 + Firewall Basic | ~EUR 560/month |
+| V8.1 + Firewall Standard | ~EUR 1,180/month |
+
+### Files
+
+| Category | Count | Details |
+|----------|-------|---------|
+| Core scripts | 2 | Deploy platform + deploy firewall |
+| Teardown scripts | 1 | Destroy platform |
+| Documentation | 3 | README, CHANGELOG, AI-AGENT-CONTEXT |
+| Knowledge Base | 7+ | SOP templates, checklists, report templates |
+| Templates | 1 | Weekly log export queries |
+| **Total** | **14+** | Security-hardened managed services package |
+
+---
+
 ## Version 8.0 (February 14, 2026)
 
 ### Purpose: SAP Managed Services Platform

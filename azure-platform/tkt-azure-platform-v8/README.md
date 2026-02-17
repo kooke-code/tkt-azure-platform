@@ -1,4 +1,4 @@
-# TKT Philippines AVD Platform - V8
+# TKT Philippines AVD Platform - V8.1
 
 **SAP Managed Services Workstation for S/4HANA Public Cloud**
 
@@ -13,10 +13,12 @@ Azure Virtual Desktop environment purpose-built for 4 SAP consultants providing 
 | **OS** | Windows 11 Enterprise Multi-Session |
 | **Region** | Southeast Asia |
 | **Identity** | Microsoft Entra ID Join (cloud-only) |
+| **Authentication** | Azure AD Kerberos (no shared keys) |
 | **Applications** | Teams (optimized), Edge, Microsoft 365 Apps |
 | **Storage** | FSLogix profiles (100GB) + Shared docs (50GB) |
+| **Firewall** | Azure Firewall with FQDN application rules |
 | **Monitoring** | Full session logging + weekly export |
-| **Estimated Cost** | ~EUR 280/month |
+| **Estimated Cost** | ~EUR 280/month (+ EUR 280/month with Firewall Basic) |
 
 ## How Consultants Work
 
@@ -50,11 +52,16 @@ cd tkt-azure-platform/azure-platform/tkt-azure-platform-v8
 export ENTRA_DOMAIN="yourdomain.onmicrosoft.com"
 export ALERT_EMAIL="you@example.com"
 
-# Deploy
+# Deploy platform
 bash scripts/deploy-avd-platform.sh
+
+# Deploy Azure Firewall (recommended for production)
+bash scripts/deploy-azure-firewall.sh
+# Use --sku Basic for cost-effective option (~EUR 280/month)
+# Use --sku Standard for full features (~EUR 900/month)
 ```
 
-The script will prompt for:
+The deploy script will prompt for:
 1. Azure subscription selection
 2. Domain confirmation
 3. Admin password (12+ chars)
@@ -130,14 +137,19 @@ Users: `ph-consultant-001` through `ph-consultant-004@{ENTRA_DOMAIN}`
 | Shared Docs Storage (50GB) | ~EUR 10 |
 | Log Analytics (90 day retention) | ~EUR 15 |
 | Networking | ~EUR 15 |
-| **Total** | **~EUR 280/month** |
+| **Platform subtotal** | **~EUR 280/month** |
+| Azure Firewall Basic (optional) | ~EUR 280/month |
+| Azure Firewall Standard (optional) | ~EUR 900/month |
+| **Total (with FW Basic)** | **~EUR 560/month** |
 
 ## Files
 
 ```
 tkt-azure-platform-v8/
 ├── scripts/
-│   └── deploy-avd-platform.sh       # Main deployment (all phases)
+│   ├── deploy-avd-platform.sh       # Main deployment (all phases, Kerberos auth)
+│   ├── deploy-azure-firewall.sh     # Azure Firewall with FQDN rules
+│   └── destroy-platform.sh          # Teardown (all resources)
 ├── templates/
 │   └── weekly-log-export-query.json  # KQL queries for weekly reports
 ├── knowledge-base/                   # SOP templates and knowledge articles
@@ -152,9 +164,20 @@ tkt-azure-platform-v8/
 └── AI-AGENT-CONTEXT.md
 ```
 
+## Security (V8.1)
+
+- **Azure AD Kerberos**: All Azure Files access (FSLogix profiles + shared-docs) authenticates
+  via Entra ID Kerberos tickets. No storage account keys are used or stored anywhere.
+  Shared key access is disabled on the storage account after deployment.
+- **Azure Firewall**: FQDN-based outbound filtering restricts session hosts to only approved
+  endpoints (SAP Fiori, Zoho Desk, Teams, Azure services). Replaces broad NSG HTTPS rules.
+- **RBAC**: `Storage File Data SMB Share Contributor` + `Elevated Contributor` roles assigned
+  to the AVD user group for identity-based file access.
+
 ## Differences from V7
 
 See [CHANGELOG.md](CHANGELOG.md) for full details. Key changes:
+- **V8.1**: Azure AD Kerberos auth (no shared keys) + Azure Firewall (FQDN filtering)
 - VM sizing for browser-heavy SAP Fiori workloads (2 users/VM, not 4)
 - Shared documentation drive for SOPs and knowledge capture
 - Weekly session log exports for AI-powered operations analysis

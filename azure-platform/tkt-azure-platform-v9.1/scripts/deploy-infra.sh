@@ -340,8 +340,10 @@ load_config() {
         local user_count=$(jq '.users | length' "$users_file" 2>/dev/null || echo "0")
         if [[ "$user_count" -gt 0 ]]; then
             USER_COUNT="$user_count"
-            VM_COUNT=$(( (USER_COUNT + MAX_SESSION_LIMIT - 1) / MAX_SESSION_LIMIT ))
-            log INFO "From users.json: $USER_COUNT users -> $VM_COUNT VMs"
+            # Size VMs at 2 users/VM (normal capacity); MAX_SESSION_LIMIT=3 is overflow headroom for zone failover
+            local target_users_per_vm=2
+            VM_COUNT=$(( (USER_COUNT + target_users_per_vm - 1) / target_users_per_vm ))
+            log INFO "From users.json: $USER_COUNT users -> $VM_COUNT VMs (2 users/VM normal, max $MAX_SESSION_LIMIT for failover)"
         fi
 
         local json_domain=$(jq -r '.domain // empty' "$users_file" 2>/dev/null)

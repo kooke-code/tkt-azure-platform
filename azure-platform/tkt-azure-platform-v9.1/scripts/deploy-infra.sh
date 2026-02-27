@@ -563,7 +563,7 @@ show_config_summary() {
     echo "  Infrastructure"
     echo "  --------------"
     echo "    Virtual Network:  $VNET_NAME ($VNET_ADDRESS_PREFIX)"
-    echo "    Session Hosts:    $VM_COUNT x $VM_SIZE"
+    echo "    Session Hosts:    $VM_COUNT x $VM_SIZE (spread across availability zones 1,2,3)"
     echo "    Host Pool:        $HOSTPOOL_NAME ($HOSTPOOL_TYPE)"
     echo "    Max Sessions:     $MAX_SESSION_LIMIT per host"
     echo ""
@@ -903,15 +903,20 @@ deploy_phase4_session_hosts() {
     log_phase 4 "SESSION HOSTS (Entra ID Join)"
 
     if [[ "$DRY_RUN" == "true" ]]; then
-        log INFO "[DRY RUN] Would create: $VM_COUNT x $VM_SIZE VMs with Entra ID join and AVD agent"
+        log INFO "[DRY RUN] Would create: $VM_COUNT x $VM_SIZE VMs across availability zones with Entra ID join and AVD agent"
         return
     fi
 
     local subnet_id=$(az network vnet subnet show --resource-group "$RESOURCE_GROUP" \
         --vnet-name "$VNET_NAME" --name "$SUBNET_NAME" --query "id" -o tsv)
 
+    # Availability zones for session host distribution
+    local available_zones=(1 2 3)
+    local zone_count=${#available_zones[@]}
+
     for i in $(seq 1 $VM_COUNT); do
         local vm_name="${VM_PREFIX}-$(printf '%02d' $i)"
+        local vm_zone=${available_zones[$(( (i - 1) % zone_count ))]}
 
         # NOTE: Stale device cleanup is handled by Track A (deploy-identity.sh)
 
@@ -919,7 +924,7 @@ deploy_phase4_session_hosts() {
         if az vm show --resource-group "$RESOURCE_GROUP" --name "$vm_name" &>/dev/null; then
             log INFO "VM $vm_name already exists"
         else
-            log INFO "Deploying session host: $vm_name ($VM_SIZE, 5-10 minutes)..."
+            log INFO "Deploying session host: $vm_name ($VM_SIZE, zone $vm_zone, 5-10 minutes)..."
             az vm create \
                 --resource-group "$RESOURCE_GROUP" --name "$vm_name" --image "$VM_IMAGE" \
                 --size "$VM_SIZE" --admin-username "$ADMIN_USERNAME" --admin-password "$(get_admin_password)" \
@@ -927,8 +932,9 @@ deploy_phase4_session_hosts() {
                 --os-disk-size-gb "$VM_DISK_SIZE_GB" --storage-sku Premium_LRS \
                 --license-type Windows_Client --security-type TrustedLaunch \
                 --enable-secure-boot --enable-vtpm --encryption-at-host true \
-                --assign-identity --tags Version="$VERSION_TAG" Role=SessionHost --output none
-            log SUCCESS "$vm_name deployed with managed identity"
+                --zone "$vm_zone" \
+                --assign-identity --tags Version="$VERSION_TAG" Role=SessionHost Zone="$vm_zone" --output none
+            log SUCCESS "$vm_name deployed in zone $vm_zone with managed identity"
         fi
 
         # Entra ID join extension

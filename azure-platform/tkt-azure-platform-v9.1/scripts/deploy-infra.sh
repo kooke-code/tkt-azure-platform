@@ -565,7 +565,7 @@ show_config_summary() {
     echo "  Infrastructure"
     echo "  --------------"
     echo "    Virtual Network:  $VNET_NAME ($VNET_ADDRESS_PREFIX)"
-    echo "    Session Hosts:    $VM_COUNT x $VM_SIZE (spread across availability zones 1,2,3)"
+    echo "    Session Hosts:    $VM_COUNT x $VM_SIZE (spread across availability zones 1,3)"
     echo "    Host Pool:        $HOSTPOOL_NAME ($HOSTPOOL_TYPE)"
     echo "    Max Sessions:     $MAX_SESSION_LIMIT per host"
     echo ""
@@ -912,8 +912,8 @@ deploy_phase4_session_hosts() {
     local subnet_id=$(az network vnet subnet show --resource-group "$RESOURCE_GROUP" \
         --vnet-name "$VNET_NAME" --name "$SUBNET_NAME" --query "id" -o tsv)
 
-    # Availability zones for session host distribution
-    local available_zones=(1 2 3)
+    # Availability zones for session host distribution (Zone 2 excluded — capacity constraints in southeastasia)
+    local available_zones=(1 3)
     local zone_count=${#available_zones[@]}
 
     for i in $(seq 1 $VM_COUNT); do
@@ -1244,7 +1244,7 @@ deploy_phase5_rbac() {
         log INFO "Creating Key Vault for break-glass credentials..."
         if ! az keyvault show --name "$KEY_VAULT_NAME" --resource-group "$RESOURCE_GROUP" &>/dev/null 2>&1; then
             az keyvault create --name "$KEY_VAULT_NAME" --resource-group "$RESOURCE_GROUP" \
-                --location "$LOCATION" --sku standard --enable-soft-delete true --retention-days 90 \
+                --location "$LOCATION" --sku standard --retention-days 90 \
                 --tags Version="$VERSION_TAG" Role=Security --output none
             log SUCCESS "Key Vault created: $KEY_VAULT_NAME"
         fi
